@@ -97,4 +97,18 @@ O sistema implementa o fluxo clássico de três camadas com buffer assíncrono p
 * **Segurança:** Isolamento em redes privadas, grupos de segurança interdependentes e controle de acesso baseado em papéis (IAM).
 * **Eficiência de Performance:** Desacoplamento entre ingestão e processamento por meio de mensageria assíncrona.
 
+</Step>
+
+  <Step subtitle="1 min" title="Commit e Push no GitHub Desktop">
+    Abra o **GitHub Desktop**. No canto inferior esquerdo, escreva no resumo:
+    `fix: fechar bloco de codigo da topologia e adicionar glossario`
+    Clique em **Commit to main** e, em seguida, em **Push origin** no topo.
+    *Verification:* O GitHub Desktop sincroniza sem erros e volta a exibir o botão "Fetch origin".
+  </Step>
+
+  <Step subtitle="30 seg" title="Validar a visualização no GitHub">
+    Atualize a página do seu repositório no navegador com **F5**.
+    *Verification:* Os títulos `## Componentes`, a tabela do Glossário e as listas aparecem com a formatação Markdown correta, fora do bloco cinza.
+  </Step>
+</Steps>
 
