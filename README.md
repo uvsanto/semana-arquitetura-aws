@@ -1,115 +1,100 @@
-# 🏛️ Semana Arquitetura AWS: Arquitetura em 3 Camadas Altamente Disponível e Desacoplada
+# 🏛️ Semana da Arquitetura AWS: Arquitetura em 3 Camadas Altamente Disponível e Desacoplada
 
-Projeto prático desenvolvido durante a **Semana da Arquitetura AWS**, implementando um padrão corporativo em nuvem focado em resiliência, alta disponibilidade (Multi-AZ), desacoplamento assíncrono e segurança de ponta a ponta (Zero Trust).
+Projeto prático de arquitetura corporativa e System Design em nuvem AWS, implementando uma aplicação em três camadas projetada sob os pilares de resiliência, alta disponibilidade (Multi-AZ), desacoplamento assíncrono via mensageria e segurança em profundidade (*Defense in Depth*).
 
 ---
+
+## 📐 Diagramas da Arquitetura
+
+### Arquitetura Inicial (Baseline)
+![Arquitetura Antes do Laboratório](assets/img/arquitetura-antes.png)
+
+### Arquitetura Final Implementada (3 Camadas Resiliente)
+![Arquitetura Após o Laboratório](assets/img/arquitetura-depois.png)
 
 ## 📐 Topologia da Arquitetura
 
 O sistema implementa o fluxo clássico de três camadas com buffer assíncrono para proteção contra picos de tráfego:
 
-
+```text
 [ Usuário / Internet ]
-│ (HTTP :80)
-▼
+         │ (HTTP :80)
+         ▼
 [ Application Load Balancer ] (Público / Multi-AZ)
-│
-┌────┴────────────────────────┐
-▼                             ▼
+         │
+    ┌────┴────────────────────────┐
+    ▼                             ▼
 [ EC2: Frontend 1 ]         [ EC2: Frontend 2 ] (Sub-redes Privadas)
 (AZ: us-east-2b)            (AZ: us-east-2a)
-│                             │
-└────┬────────────────────────┘
-│ (JSON com UUID + Payload)
-▼
+    │                             │
+    └────┬────────────────────────┘
+         │ (JSON com UUID + Payload)
+         ▼
 [ Amazon SQS: Fila Padrão ] (Buffer Assíncrono)
-│
-┌────┴────────────────────────┐
-▼                             ▼
+         │
+    ┌────┴────────────────────────┐
+    ▼                             ▼
 [ EC2: Worker Backend 1 ]   [ EC2: Worker Backend 2 ] (Sub-redes Privadas)
 (Consumo Long Polling)       (Consumo Long Polling)
-│                             │
-└────┬────────────────────────┘
-│ (Gravação NoSQL)
-▼
+    │                             │
+    └────┬────────────────────────┘
+         │ (Gravação NoSQL)
+         ▼
 [ Amazon DynamoDB ] (Tabela Sob Demanda)
 
 
----
+## ⚙️ Componentes da Infraestrutura
 
-## ⚙️ Especificações e Recursos Criados
-
-### 🌐 Rede e Infraestrutura Base (Amazon VPC)
+### 1. Camada de Rede (Amazon VPC)
 * **Região:** `us-east-2` (Ohio)
-* **VPC:** `projeto-vpc` (`vpc-0401507c7793c8633`) | Bloco CIDR: `10.0.0.0/16`
-* **Sub-redes Públicas:**
-  * `projeto-subnet-public1-us-east-2a` (ALB Nó 1)
-  * `projeto-subnet-public2-us-east-2b` (ALB Nó 2)
-* **Sub-redes Privadas:**
-  * `projeto-subnet-private1-us-east-2a` (Frontend 2)
-  * `projeto-subnet-private2-us-east-2b` (Frontend 1)
-  * `projeto-subnet-private3-us-east-2a` (Backend Worker 1)
-  * `projeto-subnet-private4-us-east-2b` (Backend Worker 2)
-* **Saída de Rede:** Internet Gateway (`projeto-igw`) para balanceador público e NAT Gateway (`projeto-regional-nat`) para saída transparente de atualizações nas sub-redes privadas.
+* **Topologia Multi-AZ:** Redundância distribuída nas Zonas de Disponibilidade `us-east-2a` e `us-east-2b`.
+* **Sub-redes Públicas:** Hospedagem dos nós do balanceador (ALB), com saída via Internet Gateway (IGW).
+* **Sub-redes Privadas:** 
+  * Camada Web (Frontend 1 e 2): isoladas de tráfego de entrada da internet.
+  * Camada de Processamento (Backend Workers 1 e 2): isoladas sem IP público.
+* **Saída de Rede Segura:** NAT Gateway regional para permitir que as instâncias privadas instalem dependências (`pip`, `yum`) sem expor portas à internet.
+
+### 2. Governança e Segurança (Zero Trust & Least Privilege)
+* **Encadeamento de Security Groups:** O grupo de segurança dos servidores EC2 aceita tráfego HTTP exclusivamente com origem referenciada no Security Group do Application Load Balancer. Nenhuma máquina aceita tráfego público direto.
+* **IAM Instance Profile:** Instâncias utilizam Roles temporárias (`ec2-role-...`) para comunicação com o SQS e DynamoDB, eliminando por completo o armazenamento de credenciais estáticas (*Access Keys*) no código-fonte.
+
+### 3. Camada de Apresentação (Frontend)
+* Aplicação desenvolvida em Python 3 com micro-framework Flask.
+* Provisionada via script de inicialização (*User Data*) automatizado, gerenciada como serviço pelo `systemd`.
+* Cada submissão gera um `requestId` único (UUID v4) e despacha o evento diretamente para a fila SQS.
+
+### 4. Camada de Desacoplamento (Amazon SQS)
+* Fila padrão atuando como buffer assíncrono.
+* Garante absorção de picos de tráfego (*traffic spikes*), evitando sobrecarga e queda da camada de banco de dados caso ocorra uma enxurrada de requisições simultâneas.
+
+### 5. Camada de Processamento Assíncrono (Backend Workers)
+* Workers executando em Python consumindo mensagens via *Long Polling* (espera de 20 segundos) para otimizar custos e reduzir chamadas de API vazias.
+* Extração do payload, gravação estruturada no banco de dados e remoção da fila via `ReceiptHandle` apenas após a confirmação da escrita.
+
+### 6. Camada de Persistência (Amazon DynamoDB)
+* Tabela NoSQL com modelo de capacidade sob demanda (*On-Demand*).
+* Partition Key: `requestId` (String).
+* Armazenamento com carimbos de auditoria: `received_at` e `processed_at`.
 
 ---
 
-### 🛡️ Camada de Segurança (Security Groups & IAM)
-1. **`loadbalancer-sg-vagner-tomaz` (`sg-0cb0a703e457be273`):**
-   * Entrada: Porta `80` (HTTP) aberta para a Internet (`0.0.0.0/0`).
-2. **`ec2-sg-vagner-tomaz` (`sg-0207307cf375e7982`):**
-   * Entrada: Porta `80` (HTTP) autorizada **apenas** com origem referenciada em `sg-0cb0a703e457be273` (Zero Direct Access).
-3. **IAM Instance Profile (`ec2-role-vagner-tomaz`):**
-   * Papel anexado diretamente às EC2, eliminando credenciais estáticas (*Access Keys*) em código.
-   * Políticas: `AmazonDynamoDBFullAccess` e `AmazonSQSFullAccess`.
+## 🧪 Evidências de Testes de Integração
+
+1. **Alta Disponibilidade e Balanceamento:**
+   * Target Group validado com alvos em estado **Healthy** distribuídos entre as zonas `us-east-2a` e `us-east-2b`.
+2. **Ingestão Assíncrona:**
+   * Requisições submetidas via formulário web com retorno de status de sucesso imediato para o usuário.
+3. **Métricas de Fila:**
+   * Monitoramento do CloudWatch registrando entrada de mensagens no SQS e esvaziamento imediato pelos workers de backend.
+4. **Persistência Confirmada no DynamoDB:**
+   * Validação com 100% de eficiência de leitura e escrita dos registros com integridade de dados preservada.
 
 ---
 
-### 🖥️ Camada de Apresentação (Frontend)
-* **Application Load Balancer:** `projeto-alb-vagner-toma`
-* **Target Group:** `grupo-frontend-vagner-tomaz` (Health Check: `/`, intervalo de 10s).
-* **Nós:** Duas instâncias EC2 (`t2.micro`) sem IP público em Zonas distintas (`us-east-2a` e `us-east-2b`).
-* **Stack:** Python 3, Flask e SDK `boto3`. Cada submissão web gera um `requestId` único via `uuid4` e encaminha a mensagem encapsulada para o Amazon SQS.
+## 💡 Princípios do AWS Well-Architected Framework Aplicados
 
----
+* **Confiabilidade:** Separação Multi-AZ em todas as camadas e recuperação automática de serviços com `systemd`.
+* **Segurança:** Isolamento em redes privadas, grupos de segurança interdependentes e controle de acesso baseado em papéis (IAM).
+* **Eficiência de Performance:** Desacoplamento entre ingestão e processamento por meio de mensageria assíncrona.
 
-### 📦 Camada de Mensageria (Buffer Assíncrono)
-* **Serviço:** Amazon SQS (Simple Queue Service)
-* **Fila:** `fila-registros-vagner-tomaz`
-* **Função:** Desacopla o frontend do processamento de banco de dados, protegendo o backend contra sobrecargas repentinas.
 
----
-
-### ⚙️ Camada de Processamento (Backend Workers)
-* **Nós:** Duas instâncias EC2 (`t2.micro`) privadas distribuídas em Multi-AZ (`us-east-2a` e `us-east-2b`).
-* **Execução:** Serviço Linux `systemd` executando script Python com *long polling* (20s) na fila SQS.
-* **Ciclo de Vida:** Extração da mensagem, persistência estruturada no DynamoDB e deleção confirmada da fila via `ReceiptHandle`.
-
----
-
-### 🗄️ Camada de Persistência (Banco de Dados NoSQL)
-* **Serviço:** Amazon DynamoDB
-* **Tabela:** `tabela-registros-vagner-tomaz`
-* **Partition Key:** `requestId` (String)
-* **Modo de Capacidade:** Sob Demanda (On-Demand)
-
----
-
-## 🧪 Validação dos Testes de Integração
-
-1. **Acesso Web via ALB:**
-   * Requisições submetidas pelo DNS público do balanceador:
-     * Transação 1: `requestId: ef49b21d-aa3e-40b2-ac6e-17cfdb24dcbe` | Dado: `Teste de Mensagem AWS`
-     * Transação 2: `requestId: 0dd96f08-2f02-4779-a8f8-5ee83c1be3da` | Dado: `Semana da arquitetura AWS`
-2. **Consumo no SQS:**
-   * Métricas do CloudWatch comprovaram entrada de mensagens e esvaziamento imediato da fila após o processamento dos nós trabalhadores.
-3. **Persistência Confirmada no DynamoDB:**
-   * Registros gravados com 100% de eficiência contendo `requestId`, `data`, `received_at` e `processed_at`.
-
----
-
-## 🎯 Lições Aprendidas e Pilares do AWS Well-Architected Framework
-
-* **Confiabilidade:** A separação Multi-AZ de balanceadores, frontends e workers impede que a falha de um datacenter interrompa o serviço.
-* **Segurança:** O encadeamento de Security Groups garante que os servidores de aplicação fiquem blindados de acessos diretos externos. O uso de IAM Roles elimina o risco de vazamento de credenciais no código.
-* **Desempenho e Eficiência:** O uso do SQS como amortecedor absorve picos sem degradação na experiência do usuário.
