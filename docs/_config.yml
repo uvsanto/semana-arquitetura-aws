@@ -1,0 +1,6 @@
+title: Semana de Arquitetura AWS — System Design Portfolio
+description: Documentação técnica do estudo de caso de arquitetura AWS.
+theme: minima
+markdown: kramdown
+kramdown:
+  input: GFM
