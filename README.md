@@ -1,200 +1,108 @@
-# 🏛️ Semana da Arquitetura AWS: Da Fundação à Observabilidade e Auto-Recuperação
+# Semana de Arquitetura AWS
+## System Design Portfolio — Arquitetura em três camadas, desacoplamento e resiliência
 
-Repositório dedicado à construção, evolução e operação de uma arquitetura corporativa em 3 camadas na AWS. O projeto documenta uma esteira real de engenharia de nuvem dividida em 3 etapas progressivas: implementação de baseline, refatoração de segurança/escalabilidade e testes de resiliência com observabilidade.
+Este repositório documenta a construção e a evolução de uma aplicação web de três camadas na AWS, desenvolvida no contexto da Semana de Arquitetura da Escola da Nuvem. O objetivo é transformar o laboratório em um estudo de caso de **System Design**, registrando requisitos, decisões arquiteturais, componentes, validações, dificuldades e oportunidades de melhoria.
 
----
+> **Escopo e transparência:** este é um laboratório educacional, não uma declaração de ambiente produtivo. Diagramas representam a visão arquitetural do desafio. Cada recurso será identificado como planejado, implementado ou validado somente quando houver evidência correspondente.
 
-## 🗺️ Visão Geral da Jornada Técnica
+## Visão executiva
 
-```text
-  ┌─────────────────────────┐
-  │   DIA 01: A Fundação    │ ➔ 3 Camadas, Multi-AZ, ALB, SQS e DynamoDB
-  └───────────┬─────────────┘
-              ▼
-  ┌─────────────────────────┐
-  │  DIA 02: O Hardening    │ ➔ SSM Parameter Store, Launch Templates e Auto Scaling
-  └───────────┬─────────────┘
-              ▼
-  ┌─────────────────────────┐
-  │  DIA 03: A Operação     │ ➔ CloudWatch Dashboards, Testes de Caos e Auto-Healing
-  └─────────────────────────┘
-```
+O desafio propõe receber solicitações de usuários, desacoplar a entrada do processamento por mensageria e persistir os resultados. A arquitetura evolui em três etapas: construção da fundação, endurecimento de segurança e elasticidade, e operação com observabilidade e resiliência.
 
----
+### Jornada do projeto
 
-## 📚 Módulos do Projeto
+| Etapa | Título | Foco |
+|---|---|---|
+| Dia 1 | **Construindo a fundação — três camadas e processamento assíncrono** | VPC, ALB, EC2, SQS e DynamoDB |
+| Dia 2 | **Endurecendo a arquitetura — configuração segura e elasticidade** | Parameter Store, Session Manager, Launch Templates, ASG, CloudFront e DLQ |
+| Dia 3 | **Operando a arquitetura — observabilidade e resiliência** | CloudWatch, SNS, métricas de backlog, escalabilidade e testes |
 
-### 🔹 [Dia 01: Arquitetura em 3 Camadas Desacoplada e Resiliente](./dia-01/README.md)
-* **Foco:** Criação do ambiente base, segregação de sub-redes públicas/privadas na VPC `projeto-vpc` (`us-east-2`)[cite: 5, 27].
-* **Implementação:** Application Load Balancer público, camadas de Frontend (Flask) e Backend Workers em EC2 privadas, fila Amazon SQS para amortecimento de tráfego e banco NoSQL Amazon DynamoDB[cite: 4, 5, 28, 29].
-* **Evidências:** 100% de persistência validada de ponta a ponta via UUIDs únicos[cite: 5, 25, 26, 30].
+## Topologia macro
 
-### 🔹 [Dia 02: Segurança com Parameter Store e Auto Scaling Group](./dia-02/README.md)
-* **Foco:** Resolução de débitos técnicos de segurança e mitigação de ponto único de falha em instâncias estáticas.
-* **Implementação:** 
-  * Desacoplamento de parâmetros sensíveis (URL da fila e tabela DynamoDB) com **AWS Systems Manager Parameter Store**.
-  * Substituição de instâncias manuais por **Launch Templates** e **Auto Scaling Groups (ASG)** com políticas de escalabilidade dinâmica e substituição automática de instâncias degradadas.
-
-### 🔹 [Dia 03: Observabilidade, Monitoramento e Engenharia do Caos](./dia-03/README.md)
-* **Foco:** Operação da arquitetura sob estresse e validação empírica de autorrecuperação (*Self-Healing*).
-* **Implementação:** Painéis unificados no **Amazon CloudWatch**, alarmes com métricas de profundidade de fila e injeção deliberada de falhas (derrubada manual de instâncias e sobrecarga de CPU) para auditoria de comportamento autônomo.
-
----
-
-## 🎯 Alinhamento com a Certificação AWS SAA-C03
-
-* **Domínio 1: Arquiteturas Seguras (30%):** Encadeamento de Security Groups (*Zero Direct Access*), sub-redes privadas e gestão centralizada de parâmetros via SSM sem credenciais estáticas[cite: 5, 20, 27, 32].
-* **Domínio 2: Arquiteturas Resilientes (26%):** Distribuição Multi-AZ (`us-east-2a` e `us-east-2b`), absorção de rajadas com Amazon SQS e recuperação automática com Auto Scaling[cite: 4, 18, 27, 28, 32].
-* **Domínio 3: Arquiteturas de Alto Desempenho (24%):** Balanceamento na Camada 7 via ALB, processamento via Long Polling e leitura/escrita em milissegundos no DynamoDB[cite: 4, 5, 22, 29, 32].
-* **Domínio 4: Arquiteturas com Custo Otimizado (20%):** Elasticidade sob demanda, DynamoDB On-Demand e dimensionamento fino de recursos computacionais[cite: 5, 29, 32].
-
-
-# 🏛️ Dia 01: Arquitetura em 3 Camadas com Desacoplamento Assíncrono
-
-## 🎯 Objetivo do Dia
-Implementar a fundação da arquitetura corporativa de 3 camadas na AWS para hospedar uma aplicação web simples, desacoplando o recebimento de dados da persistência final para suportar workloads legados ou de processamento demorado.
-
----
-
-## 📐 Topologia Implementada
-
-```text
-[ Usuário / Internet ]
-         │ (HTTP :80)
-         ▼
-[ Application Load Balancer ] (Público / Multi-AZ)
-         │
-    ┌────┴────────────────────────┐
-    ▼                             ▼
-[ EC2: Frontend 1 ]         [ EC2: Frontend 2 ] (Sub-redes Privadas)
-(AZ: us-east-2b)            (AZ: us-east-2a)
-    │                             │
-    └────┬────────────────────────┘
-         │ (JSON com UUID + Payload)
-         ▼
-[ Amazon SQS: Fila Padrão ] (Buffer Assíncrono)
-         │
-    ┌────┴────────────────────────┐
-    ▼                             ▼
-[ EC2: Worker Backend 1 ]   [ EC2: Worker Backend 2 ] (Sub-redes Privadas)
-(Consumo Long Polling)       (Consumo Long Polling)
-    │                             │
-    └────┬────────────────────────┘
-         │ (Gravação NoSQL)
-         ▼
-[ Amazon DynamoDB ] (Tabela Sob Demanda)
-```
-
----
-
-## 🛠️ Recursos Provisionados e Configurados
-
-* **Rede:** VPC `projeto-vpc` (`10.0.0.0/16`) em `us-east-2` com 2 sub-redes públicas e 4 privadas Multi-AZ (`us-east-2a` e `us-east-2b`), Internet Gateway e NAT Gateway[cite: 5, 17, 18, 21].
-* **Segurança:** 
-  * `loadbalancer-sg-vagner-tomaz`: porta 80 pública.
-  * `ec2-sg-vagner-tomaz`: porta 80 restrita exclusivamente ao Security Group do ALB[cite: 5, 20].
-  * `ec2-role-vagner-tomaz`: IAM Role anexada às instâncias EC2 com permissões para SQS e DynamoDB sem chaves estáticas[cite: 5, 24].
-* **Apresentação:** 2 instâncias EC2 rodando aplicação Python Flask via *User Data* atrás de um Application Load Balancer (`projeto-alb-vagner-toma`)[cite: 5, 18, 22].
-* **Mensageria:** Fila padrão `fila-registros-vagner-tomaz` (SQS) absorvendo mensagens assíncronas[cite: 5, 28].
-* **Processamento:** 2 instâncias EC2 de backend com serviços `systemd` consumindo a fila via *Long Polling* (20s)[cite: 5, 18].
-* **Persistência:** Tabela `tabela-registros-vagner-tomaz` (DynamoDB) gravando dados com eficiência de 100%[cite: 5, 20, 29, 30].
-
----
-
-## ⚠️ Diagnóstico e Débitos Técnicos Identificados (Gatilhos para o Dia 02)
-
-Ao final do Dia 01, foram apontados três débitos técnicos críticos para a sustentação corporativa da aplicação:
-1. **Configurações Hardcoded:** A URL da fila SQS e o nome da tabela DynamoDB estão gravados diretamente no script de aplicação das instâncias.
-2. **Falta de Agilidade Operacional:** Alterar qualquer recurso exige login manual em cada EC2 e recriação do código.
-3. **Ausência de Auto-Healing:** Se uma instância sofrer falha de hardware, pane de software ou sobrecarga, a arquitetura atual não provisiona um novo nó automaticamente[cite: 5].
-
-> 📌 *Esses problemas serão solucionados no [Dia 02](../dia-02/README.md) utilizando AWS Systems Manager Parameter Store e Auto Scaling Groups.*
-
-
-
-
-
-# 🏛️ Enterprise Cloud System Design: Arquitetura em 3 Camadas Resiliente, Elástica e Observável na AWS
-
-Este projeto documenta o ciclo de vida completo de engenharia, governança e operação de uma arquitetura corporativa distribuída em nuvem na **AWS (Região us-east-2)**. O ambiente foi desenhado para suportar cargas de trabalho desacopladas com tolerância a falhas, aderindo aos princípios do **AWS Well-Architected Framework**, diretrizes do **AWS Cloud Adoption Framework (CAF)** e conformidade com a **LGPD**.
-
----
-
-## 🗺️ Mapa da Jornada de Engenharia
-
-| Módulo | Escopo & Desafio | Serviços Chave | Documentação |
-| :---: | :--- | :--- | :---: |
-| 🏗️ **Dia 01** | **A Fundação:** Arquitetura em 3 Camadas Desacoplada | VPC Multi-AZ, ALB, EC2, SQS, DynamoDB | [Acessar Lab Dia 01 ➔](./dia-01/README.md) |
-| 🛡️ **Dia 02** | **O Hardening:** Segurança & Escalabilidade Elástica | SSM Parameter Store, Launch Templates, ASG | [Acessar Lab Dia 02 ➔](./dia-02/README.md) |
-| 📊 **Dia 03** | **A Operação:** Observabilidade & Engenharia do Caos | CloudWatch, Alarmes SNS, Backlog Scaling, Chaos Test | [Acessar Lab Dia 03 ➔](./dia-03/README.md) |
-
-## 🗺️ Visão Geral da Jornada Técnica
-
-> 📌 **Navegue pelas etapas da jornada clicando nos títulos abaixo:**
-
-### 1️⃣ [DIA 01: A Fundação — Arquitetura Resiliente em 3 Camadas](./dia-01/README.md)
-* **Pilar:** Arquitetura & Infraestrutura Base
-* **Entrega:** Provisionamento de VPC Multi-AZ, Application Load Balancer, instâncias EC2 privadas para Frontend/Backend, buffer desacoplador com Amazon SQS e banco NoSQL DynamoDB.
-* 🔗 **[Explorar documentação e scripts do Dia 01 ➔](./dia-01/README.md)**
-
-
-### 2️⃣ [DIA 02: O Hardening — Governança, Segurança e Elasticidade](./dia-02/README.md)
-* **Pilar:** Segurança da Informação & Resiliência
-* **Entrega:** Remoção de credenciais e parâmetros hardcoded usando AWS Systems Manager (SSM) Parameter Store, padronização via Launch Templates e alta disponibilidade com Auto Scaling Groups.
-* 🔗 **[Explorar documentação e templates do Dia 02 ➔](./dia-02/README.md)**
-
-### 3️⃣ [DIA 03: A Operação — Observabilidade, Negócio e Auto-Healing](./dia-03/README.md)
-* **Pilar:** Operações, Negócios & Engenharia do Caos
-* **Entrega:** Criação de painéis no Amazon CloudWatch com métricas de negócio, testes de estresse para validação de autorrecuperação e análise de impacto operacional.
-* 🔗 **[Explorar documentação e dashboards do Dia 03 ➔](./dia-03/README.md)**
-
-
-
----
-
-## 📐 Topologia Macro da Arquitetura (Mermaid.js)
+O desenho abaixo é uma visão lógica consolidada do desafio. A topologia real, os CIDRs, as rotas e o estado de cada componente devem ser confirmados nas páginas dos laboratórios e nas evidências.
 
 ```mermaid
 flowchart TD
-    subgraph Internet ["🌐 Borda Externa"]
-        User(["👤 Clientes / Usuários"])
-    end
+  U[Usuário] --> CF[CloudFront]
+  CF --> ALB[Application Load Balancer]
+  subgraph AWS[AWS VPC - desenho Multi-AZ]
+    ALB --> WEB[Frontend EC2 / Auto Scaling]
+    WEB --> SQS[Amazon SQS]
+    SQS --> WORK[Backend Workers / Auto Scaling]
+    SQS -. falhas repetidas .-> DLQ[Dead Letter Queue]
+    WORK --> DDB[(Amazon DynamoDB)]
+    WEB -. parâmetros .-> SSM[Systems Manager Parameter Store]
+    WORK -. parâmetros .-> SSM
+    CW[Amazon CloudWatch] --> SNS[Amazon SNS]
+  end
+```
 
-    subgraph VPC ["AWS Cloud - VPC Multi-AZ (10.0.0.0/16)"]
-        subgraph PublicSubnets ["Sub-redes Públicas (AZ A & AZ B)"]
-            ALB["⚖️ Application Load Balancer (ALB)"]
-            NAT["🚪 NAT Gateways"]
-        end
+### Componentes em resumo
 
-        subgraph PrivateWeb ["Sub-redes Privadas: Apresentação"]
-            ASG_Web["💻 Auto Scaling Group (Frontend Flask)"]
-        end
+| Camada/capacidade | Serviços | Responsabilidade |
+|---|---|---|
+| Entrada e distribuição | CloudFront, ALB | Distribuir requisições e encaminhar tráfego |
+| Rede | VPC, sub-redes, route tables, IGW e NAT | Segmentar conectividade |
+| Apresentação | EC2 e Auto Scaling | Hospedar frontend |
+| Mensageria | SQS e DLQ | Desacoplar e isolar mensagens com falha |
+| Processamento | EC2 Workers e Auto Scaling | Processar mensagens de forma assíncrona |
+| Persistência | DynamoDB | Armazenar registros |
+| Segurança e operação | IAM, Parameter Store e Session Manager | Controlar permissões, parâmetros e acesso |
+| Observabilidade | CloudWatch e SNS | Métricas, alarmes e notificações |
 
-        subgraph Messaging ["Camada de Buffer & Desacoplamento"]
-            SQS[("📬 Amazon SQS (Fila de Ingestão)")]
-            DLQ[("🛑 Dead Letter Queue (DLQ)")]
-            SQS -.->|Falhas Repetidas| DLQ
-        end
+## Baseline de infraestrutura
 
-        subgraph PrivateApp ["Sub-redes Privadas: Processamento"]
-            ASG_Back["⚙️ Auto Scaling Group (Workers Backend)"]
-        end
+O README anterior registrava região `us-east-2`, VPC `10.0.0.0/16`, duas sub-redes públicas e quatro privadas distribuídas em duas AZs. Esses valores são **baseline registrado**, ainda sujeitos à confirmação com evidências originais do ambiente. Os CIDRs individuais, tabelas de rotas e associações devem ser preenchidos após conferência.
 
-        subgraph Storage ["Persistência de Dados & Governança"]
-            DDB[("🗄️ Amazon DynamoDB (On-Demand)")]
-            SSM["🔐 AWS Systems Manager (Parameter Store)"]
-            CW["📈 Amazon CloudWatch (Dashboards & Alarmes)"]
-        end
-    end
+## Documentação por etapa
 
-    User -->|HTTP :80| ALB
-    ALB -->|Zero Direct Access| ASG_Web
-    ASG_Web -->|Mensagem Assíncrona com UUID| SQS
-    SQS -->|Long Polling 20s| ASG_Back
-    ASG_Back -->|Gravação NoSQL| DDB
-    ASG_Web -.->|Busca Parâmetros| SSM
-    ASG_Back -.->|Busca Parâmetros| SSM
-    ASG_Back -.->|Métricas| CW
-    PrivateWeb -.->|Tráfego de Saída| NAT
-    PrivateApp -.->|Tráfego de Saída| NAT
+- [Dia 1 — Construindo a fundação](docs/labs/day-01-foundation.md)
+- [Dia 2 — Segurança e elasticidade](docs/labs/day-02-security-scaling.md)
+- [Dia 3 — Observabilidade e resiliência](docs/labs/day-03-operations.md)
 
+## Documentação transversal
+
+- [Assessment, requisitos e critérios de validação](docs/01-assessment.md)
+- [Visão geral da arquitetura, camadas e topologia de rede](docs/02-architecture.md)
+- [Mapeamento de assuntos para SAA-C03](docs/03-saa-c03-mapping.md)
+- [Well-Architected, CAF, LGPD e FinOps](docs/04-frameworks-and-governance.md)
+- [Architecture Decision Records (ADRs)](docs/adr/README.md)
+- [Índice da documentação](docs/index.md)
+- [Evidências técnicas e troubleshooting](evidence/README.md)
+
+## Evidências e rastreabilidade
+
+O portfólio deve mostrar não apenas o resultado final, mas também como o resultado foi obtido:
+
+1. Requisito ou problema registrado.
+2. Decisão técnica documentada (ADR quando aplicável).
+3. Implementação identificada.
+4. Teste com procedimento e resultado observável.
+5. Evidência sanitizada e vinculada à documentação.
+6. Limitações e melhorias propostas.
+
+Quando não houver captura de tela, a dificuldade poderá ser registrada como relato retrospectivo, claramente identificada como tal. Não serão recriados prints ou logs apresentados como evidência original.
+
+## Relação com a certificação AWS SAA-C03
+
+O projeto aborda assuntos relacionados aos quatro domínios do exame: arquiteturas seguras, resilientes, de alto desempenho e com custo otimizado. A matriz de estudo e o método de pontuação de profundidade das evidências estão em [Mapeamento SAA-C03](docs/03-saa-c03-mapping.md). A pontuação do portfólio não representa nota prevista no exame.
+
+## Decisões de implementação e IaC
+
+O laboratório foi executado com foco em compreender e configurar os serviços AWS. Terraform, CloudFormation ou Kiro não devem ser declarados como utilizados se não fizeram parte da execução registrada. A documentação explicará quando a infraestrutura foi configurada manualmente e por que a adoção de IaC pode ser uma evolução futura: repetibilidade, versionamento, revisão e reconstrução do ambiente.
+
+## Gestão do trabalho
+
+- **GitHub Projects:** quadro Kanban, prioridades e marcos.
+- **GitHub Issues:** tarefas, problemas, critérios de aceite e rastreabilidade.
+- **GitHub Discussions:** dúvidas técnicas e conversas que não representam uma tarefa executável (habilitar nas configurações do repositório, se disponível).
+- **GitHub Actions:** validação automática de links locais da documentação; validações de IaC podem ser adicionadas quando Terraform/CloudFormation forem incluídos.
+- **GitHub Pages:** publicação da documentação como portal navegável, após habilitar Pages com origem GitHub Actions.
+
+## Segurança e custos
+
+Não publicar credenciais, tokens, IDs de conta, dados pessoais, endereços IP públicos desnecessários ou valores sensíveis do Parameter Store. Avaliar custos de EC2, NAT Gateway, ALB, CloudFront, SQS, DynamoDB e CloudWatch antes de manter recursos ligados. Ao concluir cada laboratório, seguir a orientação do instrutor sobre limpeza; não manter recursos ativos apenas para preservar o portfólio.
+
+## Sobre este estudo de caso
+
+Projeto prático de aprendizagem e portfólio individual. O conteúdo deve distinguir claramente o que veio do roteiro da Escola da Nuvem, o que foi efetivamente executado e o que constitui recomendação técnica ou evolução futura.
