@@ -1,12 +1,32 @@
-# 🏛️ Semana da Arquitetura AWS: Da Fundação à Observabilidade e Auto-Recuperação
-
-Repositório dedicado à construção, evolução e operação de uma arquitetura corporativa em 3 camadas na AWS. O projeto documenta uma esteira real de engenharia de nuvem dividida em 3 etapas progressivas: implementação de baseline, refatoração de segurança/escalabilidade e testes de resiliência com observabilidade.
+<div align="center">
+  <h1>🏛️ Semana da Arquitetura AWS</h1>
+  <h3>Da Fundação à Observabilidade e Auto-Recuperação em Nuvem</h3>
+  <p><i>Construindo um sistema digital capaz de absorver altos volumes de acessos, proteger dados sigilosos e se recuperar sozinho de falhas.</i></p>
+</div>
 
 ---
 
-## 🗺️ Visão Geral da Jornada Técnica
+## 💡 O Problema de Negócio (Para Gestores, Recrutadores e Técnicos)
 
-```text
+Imagine uma loja virtual durante uma grande promoção ou um sistema bancário em dia de pagamento. Quando milhares de clientes tentam acessar ao mesmo tempo, sistemas tradicionais costumam travar, perder pedidos ou sair do ar porque o servidor que recebe o cliente é o mesmo que tenta salvar os dados no banco.
+
+Este projeto resolve exatamente esse desafio real de negócio em **três etapas evolutivas**:
+1. **Organização do Fluxo (Dia 01):** Criamos uma "fila inteligente" entre o site e o banco de dados. O cliente faz o pedido, recebe a confirmação na hora, e o sistema processa tudo em segundo plano sem travar, mesmo em horários de pico.
+2. **Segurança e Elasticidade (Dia 02):** Blindamos as informações confidenciais em um cofre digital e configuramos a estrutura para crescer ou diminuir automaticamente conforme o número de clientes aumenta ou diminui.
+3. **Visão de Negócio e Resistência (Dia 03):** Instalamos um painel de controle em tempo real e simulamos quedas propositais de servidores para comprovar que o sistema continua funcionando sem que o usuário perceba qualquer interrupção.
+
+---
+
+## 🗺️ Visão Geral da Jornada (Cronograma Evolutivo)
+
+> 🖱️ *Clique no nome da etapa para rolar até os detalhes ou em "Abrir Projeto" para acessar a documentação técnica exclusiva de cada dia.*
+
+| Ordem Cronológica | Etapa do Projeto | Foco de Negócio e Técnico | Navegação Rápida | Documentação Completa |
+| :---: | :--- | :--- | :---: | :---: |
+| **01/03** | **Dia 01: A Fundação** | Arquitetura em 3 Camadas e Fila de Mensagens | [Ver Resumo 👇](#dia-01) | [📂 Abrir Dia 01](./dia-01/README.md) |
+| **02/03** | **Dia 02: O Hardening** | Segurança de Dados e Escala Automática | [Ver Resumo 👇](#dia-02) | [📂 Abrir Dia 02](./dia-02/README.md) |
+| **03/03** | **Dia 03: A Operação** | Painéis de Monitoramento e Testes de Falha | [Ver Resumo 👇](#dia-03) | [📂 Abrir Dia 03](./dia-03/README.md) |
+
   ┌─────────────────────────┐
   │   DIA 01: A Fundação    │ ➔ 3 Camadas, Multi-AZ, ALB, SQS e DynamoDB
   └───────────┬─────────────┘
@@ -17,108 +37,38 @@ Repositório dedicado à construção, evolução e operação de uma arquitetur
               ▼
   ┌─────────────────────────┐
   │  DIA 03: A Operação     │ ➔ CloudWatch Dashboards, Testes de Caos e Auto-Healing
-  └─────────────────────────┘
-```
+  └──────
 
 ---
 
-## 📚 Módulos do Projeto
+## 📐 Evolução Visual da Arquitetura
 
-### 🔹 [Dia 01: Arquitetura em 3 Camadas Desacoplada e Resiliente](./dia-01/README.md)
-* **Foco:** Criação do ambiente base, segregação de sub-redes públicas/privadas na VPC `projeto-vpc` (`us-east-2`)[cite: 5, 27].
-* **Implementação:** Application Load Balancer público, camadas de Frontend (Flask) e Backend Workers em EC2 privadas, fila Amazon SQS para amortecimento de tráfego e banco NoSQL Amazon DynamoDB[cite: 4, 5, 28, 29].
-* **Evidências:** 100% de persistência validada de ponta a ponta via UUIDs únicos[cite: 5, 25, 26, 30].
+### 1. Cenário Inicial (Antes do Projeto)
+![Arquitetura Antes do Laboratório](assets/img/arquitetura-antes.png)
 
-### 🔹 [Dia 02: Segurança com Parameter Store e Auto Scaling Group](./dia-02/README.md)
-* **Foco:** Resolução de débitos técnicos de segurança e mitigação de ponto único de falha em instâncias estáticas.
-* **Implementação:** 
-  * Desacoplamento de parâmetros sensíveis (URL da fila e tabela DynamoDB) com **AWS Systems Manager Parameter Store**.
-  * Substituição de instâncias manuais por **Launch Templates** e **Auto Scaling Groups (ASG)** com políticas de escalabilidade dinâmica e substituição automática de instâncias degradadas.
-
-### 🔹 [Dia 03: Observabilidade, Monitoramento e Engenharia do Caos](./dia-03/README.md)
-* **Foco:** Operação da arquitetura sob estresse e validação empírica de autorrecuperação (*Self-Healing*).
-* **Implementação:** Painéis unificados no **Amazon CloudWatch**, alarmes com métricas de profundidade de fila e injeção deliberada de falhas (derrubada manual de instâncias e sobrecarga de CPU) para auditoria de comportamento autônomo.
-
----
-
-## 🎯 Alinhamento com a Certificação AWS SAA-C03
-
-* **Domínio 1: Arquiteturas Seguras (30%):** Encadeamento de Security Groups (*Zero Direct Access*), sub-redes privadas e gestão centralizada de parâmetros via SSM sem credenciais estáticas[cite: 5, 20, 27, 32].
-* **Domínio 2: Arquiteturas Resilientes (26%):** Distribuição Multi-AZ (`us-east-2a` e `us-east-2b`), absorção de rajadas com Amazon SQS e recuperação automática com Auto Scaling[cite: 4, 18, 27, 28, 32].
-* **Domínio 3: Arquiteturas de Alto Desempenho (24%):** Balanceamento na Camada 7 via ALB, processamento via Long Polling e leitura/escrita em milissegundos no DynamoDB[cite: 4, 5, 22, 29, 32].
-* **Domínio 4: Arquiteturas com Custo Otimizado (20%):** Elasticidade sob demanda, DynamoDB On-Demand e dimensionamento fino de recursos computacionais[cite: 5, 29, 32].
+### 2. Cenário Implementado (Arquitetura em 3 Camadas Desacoplada)
+![Arquitetura Após o Laboratório](assets/img/arquitetura-depois.png)
 
 
-# 🏛️ Dia 01: Arquitetura em 3 Camadas com Desacoplamento Assíncrono
+## 📚 Detalhamento dos Módulos por Etapa
 
-## 🎯 Objetivo do Dia
-Implementar a fundação da arquitetura corporativa de 3 camadas na AWS para hospedar uma aplicação web simples, desacoplando o recebimento de dados da persistência final para suportar workloads legados ou de processamento demorado.
+<a id="dia-01"></a>
+### 🔹 Dia 01 (Etapa 01/03) — Arquitetura em 3 Camadas Desacoplada e Resiliente
+* **O que foi feito:** Construção da rede segura (VPC) dividida em duas zonas geográficas independentes em Ohio (`us-east-2a` e `us-east-2b`), criação de um distribuidor de acessos (Load Balancer), servidores web em rede privada, fila de mensagens (Amazon SQS) e banco de dados de alta velocidade (Amazon DynamoDB).
+* **Resultado prático:** O usuário envia informações pelo navegador e recebe confirmação instantânea, enquanto os servidores internos gravam os dados com 100% de sucesso sem risco de sobrecarga.
+* 🔗 **[Acessar página técnica completa do Dia 01 ➔](./dia-01/README.md)**
 
----
+<a id="dia-02"></a>
+### 🔹 Dia 02 (Etapa 02/03) — Segurança Centralizada e Escalabilidade Automática
+* **O que foi feito:** Remoção de endereços e configurações expostas no código usando o cofre **AWS Systems Manager (Parameter Store)** e substituição de servidores fixos por grupos de **Auto Scaling** com modelos padronizados (*Launch Templates*).
+* **Resultado prático:** Se um servidor falhar ou o tráfego dobrar de repente, a própria nuvem cria um novo servidor saudável em minutos, sem intervenção humana.
+* 🔗 **[Acessar página técnica completa do Dia 02 ➔](./dia-02/README.md)**
 
-## 📐 Topologia Implementada
-
-```text
-[ Usuário / Internet ]
-         │ (HTTP :80)
-         ▼
-[ Application Load Balancer ] (Público / Multi-AZ)
-         │
-    ┌────┴────────────────────────┐
-    ▼                             ▼
-[ EC2: Frontend 1 ]         [ EC2: Frontend 2 ] (Sub-redes Privadas)
-(AZ: us-east-2b)            (AZ: us-east-2a)
-    │                             │
-    └────┬────────────────────────┘
-         │ (JSON com UUID + Payload)
-         ▼
-[ Amazon SQS: Fila Padrão ] (Buffer Assíncrono)
-         │
-    ┌────┴────────────────────────┐
-    ▼                             ▼
-[ EC2: Worker Backend 1 ]   [ EC2: Worker Backend 2 ] (Sub-redes Privadas)
-(Consumo Long Polling)       (Consumo Long Polling)
-    │                             │
-    └────┬────────────────────────┘
-         │ (Gravação NoSQL)
-         ▼
-[ Amazon DynamoDB ] (Tabela Sob Demanda)
-```
-
----
-
-## 🛠️ Recursos Provisionados e Configurados
-
-* **Rede:** VPC `projeto-vpc` (`10.0.0.0/16`) em `us-east-2` com 2 sub-redes públicas e 4 privadas Multi-AZ (`us-east-2a` e `us-east-2b`), Internet Gateway e NAT Gateway[cite: 5, 17, 18, 21].
-* **Segurança:** 
-  * `loadbalancer-sg-vagner-tomaz`: porta 80 pública.
-  * `ec2-sg-vagner-tomaz`: porta 80 restrita exclusivamente ao Security Group do ALB[cite: 5, 20].
-  * `ec2-role-vagner-tomaz`: IAM Role anexada às instâncias EC2 com permissões para SQS e DynamoDB sem chaves estáticas[cite: 5, 24].
-* **Apresentação:** 2 instâncias EC2 rodando aplicação Python Flask via *User Data* atrás de um Application Load Balancer (`projeto-alb-vagner-toma`)[cite: 5, 18, 22].
-* **Mensageria:** Fila padrão `fila-registros-vagner-tomaz` (SQS) absorvendo mensagens assíncronas[cite: 5, 28].
-* **Processamento:** 2 instâncias EC2 de backend com serviços `systemd` consumindo a fila via *Long Polling* (20s)[cite: 5, 18].
-* **Persistência:** Tabela `tabela-registros-vagner-tomaz` (DynamoDB) gravando dados com eficiência de 100%[cite: 5, 20, 29, 30].
-
----
-
-## ⚠️ Diagnóstico e Débitos Técnicos Identificados (Gatilhos para o Dia 02)
-
-Ao final do Dia 01, foram apontados três débitos técnicos críticos para a sustentação corporativa da aplicação:
-1. **Configurações Hardcoded:** A URL da fila SQS e o nome da tabela DynamoDB estão gravados diretamente no script de aplicação das instâncias.
-2. **Falta de Agilidade Operacional:** Alterar qualquer recurso exige login manual em cada EC2 e recriação do código.
-3. **Ausência de Auto-Healing:** Se uma instância sofrer falha de hardware, pane de software ou sobrecarga, a arquitetura atual não provisiona um novo nó automaticamente[cite: 5].
-
-> 📌 *Esses problemas serão solucionados no [Dia 02](../dia-02/README.md) utilizando AWS Systems Manager Parameter Store e Auto Scaling Groups.*
-
-
-
-
-
-# 🏛️ Enterprise Cloud System Design: Arquitetura em 3 Camadas Resiliente, Elástica e Observável na AWS
-
-Este projeto documenta o ciclo de vida completo de engenharia, governança e operação de uma arquitetura corporativa distribuída em nuvem na **AWS (Região us-east-2)**. O ambiente foi desenhado para suportar cargas de trabalho desacopladas com tolerância a falhas, aderindo aos princípios do **AWS Well-Architected Framework**, diretrizes do **AWS Cloud Adoption Framework (CAF)** e conformidade com a **LGPD**.
-
----
+<a id="dia-03"></a>
+### 🔹 Dia 03 (Etapa 03/03) — Observabilidade, Métricas e Engenharia do Caos
+* **O que foi feito:** Criação de painéis visuais no **Amazon CloudWatch**, configuração de alertas automáticos e execução de testes de estresse desligando máquinas propositalmente (*Chaos Engineering*).
+* **Resultado prático:** Comprovação prática de que a arquitetura se recupera sozinha (*Self-Healing*) e mantém os indicadores operacionais visíveis para a tomada de decisão.
+* 🔗 **[Acessar página técnica completa do Dia 03 ➔](./dia-03/README.md)**
 
 ## 🗺️ Mapa da Jornada de Engenharia
 
@@ -128,73 +78,31 @@ Este projeto documenta o ciclo de vida completo de engenharia, governança e ope
 | 🛡️ **Dia 02** | **O Hardening:** Segurança & Escalabilidade Elástica | SSM Parameter Store, Launch Templates, ASG | [Acessar Lab Dia 02 ➔](./dia-02/README.md) |
 | 📊 **Dia 03** | **A Operação:** Observabilidade & Engenharia do Caos | CloudWatch, Alarmes SNS, Backlog Scaling, Chaos Test | [Acessar Lab Dia 03 ➔](./dia-03/README.md) |
 
-## 🗺️ Visão Geral da Jornada Técnica
-
-> 📌 **Navegue pelas etapas da jornada clicando nos títulos abaixo:**
-
-### 1️⃣ [DIA 01: A Fundação — Arquitetura Resiliente em 3 Camadas](./dia-01/README.md)
-* **Pilar:** Arquitetura & Infraestrutura Base
-* **Entrega:** Provisionamento de VPC Multi-AZ, Application Load Balancer, instâncias EC2 privadas para Frontend/Backend, buffer desacoplador com Amazon SQS e banco NoSQL DynamoDB.
-* 🔗 **[Explorar documentação e scripts do Dia 01 ➔](./dia-01/README.md)**
-
-
-### 2️⃣ [DIA 02: O Hardening — Governança, Segurança e Elasticidade](./dia-02/README.md)
-* **Pilar:** Segurança da Informação & Resiliência
-* **Entrega:** Remoção de credenciais e parâmetros hardcoded usando AWS Systems Manager (SSM) Parameter Store, padronização via Launch Templates e alta disponibilidade com Auto Scaling Groups.
-* 🔗 **[Explorar documentação e templates do Dia 02 ➔](./dia-02/README.md)**
-
-### 3️⃣ [DIA 03: A Operação — Observabilidade, Negócio e Auto-Healing](./dia-03/README.md)
-* **Pilar:** Operações, Negócios & Engenharia do Caos
-* **Entrega:** Criação de painéis no Amazon CloudWatch com métricas de negócio, testes de estresse para validação de autorrecuperação e análise de impacto operacional.
-* 🔗 **[Explorar documentação e dashboards do Dia 03 ➔](./dia-03/README.md)**
-
-
 
 ---
 
-## 📐 Topologia Macro da Arquitetura (Mermaid.js)
+## 🏆 Ranking geral de Alinhamento: Certificação AWS Solutions Architect (SAA-C03)
 
-```mermaid
-flowchart TD
-    subgraph Internet ["🌐 Borda Externa"]
-        User(["👤 Clientes / Usuários"])
-    end
+Abaixo está o ranking oficial de relevância exigido no exame **AWS SAA-C03** (do maior para o menor peso na prova) e como cada um dos 3 cenários deste projeto cumpre esses requisitos na prática:
 
-    subgraph VPC ["AWS Cloud - VPC Multi-AZ (10.0.0.0/16)"]
-        subgraph PublicSubnets ["Sub-redes Públicas (AZ A & AZ B)"]
-            ALB["⚖️ Application Load Balancer (ALB)"]
-            NAT["🚪 NAT Gateways"]
-        end
+| Posição | Domínio Oficial da Prova SAA-C03 | Peso no Exame | Aplicação no Dia 01 (Fundação) | Aplicação no Dia 02 (Segurança/Escala) | Aplicação no Dia 03 (Operação/Caos) |
+| :---: | :--- | :---: | :--- | :--- | :--- |
+| **1º Lugar** | **Domínio 1: Arquiteturas Seguras** | **30%** | Servidores isolados em sub-redes privadas, bloqueio de acesso direto (*Zero Direct Access*) e permissões via IAM Role. | Eliminação de dados sensíveis do código-fonte utilizando o **SSM Parameter Store** e acesso sem porta SSH exposta. | Auditoria de acessos e validação das regras de proteção durante simulações de incidente. |
+| **2º Lugar** | **Domínio 2: Arquiteturas Resilientes** | **26%** | Infraestrutura duplicada em 2 Zonas (Multi-AZ), Load Balancer e fila **SQS** para não perder requisições. | Implementação de **Auto Scaling Groups** para substituir máquinas com defeito automaticamente. | Testes reais de queda (*Chaos Testing*) comprovando a recuperação autônoma do ambiente. |
+| **3º Lugar** | **Domínio 3: Alto Desempenho** | **24%** | Resposta rápida ao usuário com separação entre camada web (Flask), mensageria e banco NoSQL **DynamoDB**. | Padronização de inicialização rápida via *Launch Templates* e escalabilidade elástica sob demanda. | Ajuste fino de desempenho acompanhando métricas de tempo de resposta e vazão da fila em tempo real. |
+| **4º Lugar** | **Domínio 4: Custo Otimizado** | **20%** | Uso de banco **DynamoDB On-Demand** (custo zero quando ocioso) e leitura inteligente da fila (*Long Polling* 20s). | Redução automática de servidores em horários de baixo movimento para evitar desperdício financeiro. | Monitoramento de consumo de recursos no **CloudWatch** para manter a operação enxuta (FinOps). |
 
-        subgraph PrivateWeb ["Sub-redes Privadas: Apresentação"]
-            ASG_Web["💻 Auto Scaling Group (Frontend Flask)"]
-        end
+---
 
-        subgraph Messaging ["Camada de Buffer & Desacoplamento"]
-            SQS[("📬 Amazon SQS (Fila de Ingestão)")]
-            DLQ[("🛑 Dead Letter Queue (DLQ)")]
-            SQS -.->|Falhas Repetidas| DLQ
-        end
+## 📖 Glossário Rápido (Traduzindo o "Techniquês")
 
-        subgraph PrivateApp ["Sub-redes Privadas: Processamento"]
-            ASG_Back["⚙️ Auto Scaling Group (Workers Backend)"]
-        end
-
-        subgraph Storage ["Persistência de Dados & Governança"]
-            DDB[("🗄️ Amazon DynamoDB (On-Demand)")]
-            SSM["🔐 AWS Systems Manager (Parameter Store)"]
-            CW["📈 Amazon CloudWatch (Dashboards & Alarmes)"]
-        end
-    end
-
-    User -->|HTTP :80| ALB
-    ALB -->|Zero Direct Access| ASG_Web
-    ASG_Web -->|Mensagem Assíncrona com UUID| SQS
-    SQS -->|Long Polling 20s| ASG_Back
-    ASG_Back -->|Gravação NoSQL| DDB
-    ASG_Web -.->|Busca Parâmetros| SSM
-    ASG_Back -.->|Busca Parâmetros| SSM
-    ASG_Back -.->|Métricas| CW
-    PrivateWeb -.->|Tráfego de Saída| NAT
-    PrivateApp -.->|Tráfego de Saída| NAT
+| Termo Técnico | O que significa no mundo real? | Papel no Projeto |
+| :--- | :--- | :--- |
+| **Amazon VPC** | Condomínio fechado digital | Isola toda a nossa estrutura do restante da internet pública. |
+| **Sub-rede Privada** | Área restrita apenas para funcionários | Onde ficam os servidores e o banco de dados, longe do acesso direto de desconhecidos. |
+| **Load Balancer (ALB)** | Recepcionista / Organizador de fila | Recebe os visitantes na entrada e distribui para o servidor que estiver mais livre. |
+| **Amazon SQS** | Senha de atendimento / Caixa de entrada | Guarda os pedidos em segurança por ordem de chegada para nenhum dado se perder. |
+| **Amazon DynamoDB** | Arquivo digital ultrarrápido | Banco de dados que guarda os registros finais em milésimos de segundo. |
+| **Parameter Store** | Cofre de configurações | Guarda os endereços internos do sistema fora do código para aumentar a segurança. |
+| **Auto Scaling** | Equipe elástica sob demanda | Contrata mais servidores quando a loja enche e dispensa quando esvazia. |
 
