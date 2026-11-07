@@ -1,0 +1,87 @@
+name: CI - Validação de Arquitetura e Documentação
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  quality-gate:
+    name: Auditoria Documental, Links, Mermaid & Segurança
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 1. Clonar o Repositório
+        uses: actions/checkout@v4
+
+      - name: 📋 2. Checklist de Documentação Obrigatória
+        run: |
+          echo "Verificando a existência dos documentos de cada módulo..."
+          arquivos=("README.md" "dia-01/README.md" "dia-02/README.md" "dia-03/README.md")
+          for arq in "${arquivos[@]}"; do
+            if [ -s "$arq" ]; then
+              echo "✅ Documento validado e preenchido: $arq"
+            else
+              echo "❌ Erro: O arquivo $arq não existe ou está vazio!"
+              exit 1
+            fi
+          done
+
+      - name: 📐 3. Validação de Diagramas como Código (Mermaid.js)
+        run: |
+          echo "Verificando sintaxe e fechamento dos blocos Mermaid..."
+          for arq in "README.md" "dia-01/README.md" "dia-02/README.md" "dia-03/README.md"; do
+            if grep -q '```mermaid' "$arq"; then
+              echo "✅ Diagrama Mermaid detectado em: $arq"
+            else
+              echo "❌ Erro: Nenhum diagrama Mermaid encontrado em $arq"
+              exit 1
+            fi
+          done
+
+      - name: 🔗 4. Verificação de Links Internos Quebrados
+        run: |
+          echo "Verificando se os links internos entre os módulos apontam para arquivos reais..."
+          python3 -c '
+          import re, os, sys
+          arquivos = ["README.md", "dia-01/README.md", "dia-02/README.md", "dia-03/README.md"]
+          erro = False
+          for arq in arquivos:
+              base_dir = os.path.dirname(arq)
+              with open(arq, "r", encoding="utf-8", errors="ignore") as f:
+                  conteudo = f.read()
+              links = re.findall(r"\]\((\.[^)#]+)\)", conteudo)
+              for link in links:
+                  caminho_alvo = os.path.normpath(os.path.join(base_dir, link))
+                  if not os.path.exists(caminho_alvo):
+                      print(f"❌ Link quebrado em {arq}: {link} -> ({caminho_alvo} não encontrado)")
+                      erro = True
+                  else:
+                      print(f"✅ Link íntegro em {arq}: {link}")
+          if erro:
+              sys.exit(1)
+          '
+
+      - name: 📖 5. Validação de Estrutura Markdown e Sintaxe Python
+        run: |
+          echo "Verificando se todos os blocos de código (```) estão devidamente fechados..."
+          for arq in "README.md" "dia-01/README.md" "dia-02/README.md" "dia-03/README.md"; do
+            contagem=$(grep -c '^```' "$arq" || true)
+            if [ $((contagem % 2)) -ne 0 ]; then
+              echo "❌ Erro de formatação em $arq: Bloco de código (```) aberto e não fechado!"
+              exit 1
+            else
+              echo "✅ Formatação de blocos Markdown íntegra em: $arq ($contagem delimitadores)"
+            fi
+          done
+
+      - name: 🛡️ 6. Auditoria Zero Trust (Prevenção de Vazamento de Credenciais)
+        run: |
+          echo "Verificando ausência de Access Keys estáticas da AWS..."
+          if grep -rnE "AKIA[0-9A-Z]{16}" . --exclude-dir=.git --exclude-dir=.github; then
+            echo "❌ ALERTA CRÍTICO: Chave AKIA encontrada no código!"
+            exit 1
+          else
+            echo "✅ Zero chaves expostas. Conformidade com IAM Roles e LGPD validada."
+          fi

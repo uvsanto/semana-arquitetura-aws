@@ -1,241 +1,129 @@
-# 🏗️ Dia 01 — Construindo a Solução: Arquitetura em 3 Camadas com Desacoplamento Assíncrono
-
-[⬅️ Voltar para a Página Principal](../README.md) | [Avançar para o Dia 02: Evoluindo a Arquitetura ➡️](../dia-02/README.md)
-
----
-
-## 🎯 Descrição e Objetivo Pedagógico da Etapa
-
-No **Dia 01**, construímos a fundação de uma aplicação web corporativa dividida em **3 níveis (Apresentação, Processamento/Mensageria e Banco de Dados)**. 
-
-**Como funciona na prática:** 
-Em vez de fazer o servidor do site gravar os dados diretamente no banco de dados (o que travaria o site caso o banco ficasse lento ou recebesse milhares de acessos simultâneos), colocamos uma fila do **Amazon SQS** no meio do caminho. O site apenas deposita o pedido na fila e responde imediatamente ao cliente. Em outra camada isolada, servidores de **Backend** leem essa fila continuamente e salvam os registros no **Amazon DynamoDB**. Esse padrão de **acoplamento fraco** garante que uma falha em uma parte do sistema jamais derrube as demais.
+<div align="center">
+  <h1>🏗️ Dia 01 — Construindo a Solução</h1>
+  <h3>Fundação da Arquitetura em 3 Camadas com Desacoplamento Assíncrono na AWS</h3>
+  <p>
+    <a href="../README.md">⬅️ Voltar para a Página Principal</a> • 
+    <a href="../dia-02/README.md">Avançar para o Dia 02: Evoluindo a Arquitetura ➡️</a>
+  </p>
+</div>
 
 ---
 
-## 📐 Topologia da Arquitetura — Cenário Dia 01
+## 🎯 Descrição Didática do Desafio (O Projeto do Dia 01)
+
+Neste primeiro desafio da **Semana de Arquitetura AWS (Turma C9 SET - DPCN 17)**, sob orientação do **[Prof. Ednilson Cipolla](https://br.linkedin.com/in/ednilsoncipolla)** na **[Escola da Nuvem](https://escoladanuvem.org/)**, construímos a base de uma aplicação web corporativa dividida em **3 níveis lógicos (Apresentação, Mensageria/Processamento e Persistência)**.
+
+**Por que usar essa arquitetura?**
+Em sistemas legados ou que exigem processamento demorado, conectar o site diretamente ao banco de dados é um risco: se uma camada falhar ou lentificar, todo o sistema cai. Para resolver isso, introduzimos o **[Amazon SQS](https://aws.amazon.com/pt/sqs/)** entre o **Frontend** e o **Backend** (acoplamento fraco). O usuário envia uma mensagem pelo site, o servidor web deposita essa requisição na fila e libera o usuário imediatamente. Em segundo plano, os servidores de Backend leem a fila e salvam no **[Amazon DynamoDB](https://aws.amazon.com/pt/dynamodb/)**.
+
+---
+
+## 📐 Topologia da Arquitetura — Cenário Dia 01 (Mermaid.js)
 
 ```mermaid
 flowchart LR
-    User(["👤 Usuário Externo"]) -->|HTTP :80| ALB["⚖️ ALB Público\n(projeto-alb-vagner-toma)\nus-east-2a / 2b"]
+    User(["👤 Usuários Web"]) -->|HTTP :80| ALB["⚖️ Application Load Balancer\n(projeto-alb-vagner-toma)\nSub-redes Públicas (2a / 2b)"]
 
-    subgraph PrivateWeb ["Sub-redes Privadas Web"]
-        FE1["💻 EC2 Frontend 1\n(AZ: us-east-2b)\nIP: 10.0.151.X"]
-        FE2["💻 EC2 Frontend 2\n(AZ: us-east-2a)\nIP: 10.0.138.X"]
+    subgraph VPC ["☁️ AWS Cloud — VPC: projeto-vpc (10.0.0.0/16) | Região: us-east-2"]
+        subgraph WebTier ["1ª Camada: Frontend (Sub-redes Privadas)"]
+            FE1["💻 EC2: frontend1-vagner-tomaz\n(AZ: us-east-2b | Python Flask)"]
+            FE2["💻 EC2: frontend2-vagner-tomaz\n(AZ: us-east-2a | Python Flask)"]
+        end
+
+        subgraph BufferTier ["2ª Camada: Desacoplamento Assíncrono"]
+            SQS[("📬 Amazon SQS\nfila-registros-vagner-tomaz")]
+        end
+
+        subgraph AppTier ["2ª Camada: Backend Workers (Sub-redes Privadas)"]
+            BE1["⚙️ EC2: backend1-vagner-tomaz\n(AZ: us-east-2a | Worker systemd)"]
+            BE2["⚙️ EC2: backend2-vagner-tomaz\n(AZ: us-east-2b | Worker systemd)"]
+        end
+
+        subgraph DataTier ["3ª Camada: Banco de Dados NoSQL"]
+            DDB[("🗄️ Amazon DynamoDB\ntabela-registros-vagner-tomaz\nPK: requestId (On-Demand)")]
+        end
     end
 
-    subgraph Buffer ["Camada de Desacoplamento"]
-        SQS[("📬 Amazon SQS\nfila-registros-vagner-tomaz")]
-    end
-
-    subgraph PrivateApp ["Sub-redes Privadas Backend"]
-        BE1["⚙️ EC2 Backend 1\n(AZ: us-east-2a)\nWorker systemd"]
-        BE2["⚙️ EC2 Backend 2\n(AZ: us-east-2b)\nWorker systemd"]
-    end
-
-    subgraph Database ["Camada de Dados"]
-        DDB[("🗄️ Amazon DynamoDB\ntabela-registros-vagner-tomaz\nPK: requestId")]
-    end
-
-    ALB -->|Target Group: Porta 80| FE1
-    ALB -->|Target Group: Porta 80| FE2
-    FE1 -->|SendMessage JSON| SQS
-    FE2 -->|SendMessage JSON| SQS
-    SQS -->|ReceiveMessage (Long Polling 20s)| BE1
-    SQS -->|ReceiveMessage (Long Polling 20s)| BE2
-    BE1 -->|PutItem| DDB
-    BE2 -->|PutItem| DDB
+    ALB -->|Target Group :80\ngrupo-frontend-vagner-tomaz| FE1
+    ALB -->|Target Group :80\ngrupo-frontend-vagner-tomaz| FE2
+    FE1 -->|SendMessage JSON + UUID| SQS
+    FE2 -->|SendMessage JSON + UUID| SQS
+    SQS -->|Long Polling 20s| BE1
+    SQS -->|Long Polling 20s| BE2
+    BE1 -->|PutItem NoSQL| DDB
+    BE2 -->|PutItem NoSQL| DDB
 ```
 
 ---
 
-## 🌐 Topologia e Endereçamento de Rede (VPC & Sub-redes)
+## 🌐 Topologia e Endereçamento de Sub-redes
 
-A infraestrutura utiliza a VPC `projeto-vpc` (`10.0.0.0/16`) na região `us-east-2` (Ohio), dividida estrategicamente em 6 sub-redes distribuídas em duas Zonas de Disponibilidade:
+A rede `projeto-vpc` (`10.0.0.0/16`) em Ohio (`us-east-2`) foi segmentada em duas Zonas de Disponibilidade para garantir tolerância a falhas:
 
-| Nome da Sub-rede | Zona (AZ) | Tipo de Rede | Rota de Saída Padrão (`0.0.0.0/0`) | Recursos Alocados na Sub-rede |
+| Sub-rede | Zona (AZ) | Escopo | Roteamento de Saída (`0.0.0.0/0`) | Recursos Alocados |
 | :--- | :---: | :---: | :--- | :--- |
-| **Sub-rede Pública 1** | `us-east-2a` | Pública | Internet Gateway (`IGW`) | Nó do Application Load Balancer + NAT Gateway A |
-| **Sub-rede Pública 2** | `us-east-2b` | Pública | Internet Gateway (`IGW`) | Nó do Application Load Balancer + NAT Gateway B |
-| **Sub-rede Privada 1** | `us-east-2a` | Privada (Web) | NAT Gateway A | Instância EC2 `frontend2-vagner-tomaz` |
-| **Sub-rede Privada 2** | `us-east-2b` | Privada (Web) | NAT Gateway B | Instância EC2 `frontend1-vagner-tomaz` |
-| **Sub-rede Privada 3** | `us-east-2a` | Privada (App) | NAT Gateway A | Instância EC2 `backend1-vagner-tomaz` |
-| **Sub-rede Privada 4** | `us-east-2b` | Privada (App) | NAT Gateway B | Instância EC2 `backend2-vagner-tomaz` |
+| **Sub-rede Pública 1** | `us-east-2a` | Pública | [Internet Gateway (IGW)](https://docs.aws.amazon.com/pt_br/vpc/latest/userguide/VPC_Internet_Gateway.html) | Nó do ALB + NAT Gateway A |
+| **Sub-rede Pública 2** | `us-east-2b` | Pública | [Internet Gateway (IGW)](https://docs.aws.amazon.com/pt_br/vpc/latest/userguide/VPC_Internet_Gateway.html) | Nó do ALB + NAT Gateway B |
+| **Sub-rede Privada 1** | `us-east-2a` | Privada | [NAT Gateway A](https://docs.aws.amazon.com/pt_br/vpc/latest/userguide/vpc-nat-gateway.html) | `frontend2-vagner-tomaz` (Flask) |
+| **Sub-rede Privada 2** | `us-east-2b` | Privada | [NAT Gateway B](https://docs.aws.amazon.com/pt_br/vpc/latest/userguide/vpc-nat-gateway.html) | `frontend1-vagner-tomaz` (Flask) |
+| **Sub-rede Privada 3** | `us-east-2a` | Privada | [NAT Gateway A](https://docs.aws.amazon.com/pt_br/vpc/latest/userguide/vpc-nat-gateway.html) | `backend1-vagner-tomaz` (Worker) |
+| **Sub-rede Privada 4** | `us-east-2b` | Privada | [NAT Gateway B](https://docs.aws.amazon.com/pt_br/vpc/latest/userguide/vpc-nat-gateway.html) | `backend2-vagner-tomaz` (Worker) |
 
 ---
 
-## 🛠️ Tecnologias AWS Utilizadas nesta Etapa e Glossário Técnico
+## 🛠️ Tecnologias AWS Utilizadas e Glossário da Etapa
 
-| Serviço / Recurso | Função Prática no Dia 01 | Conceito de Glossário (O que é?) |
+| Serviço AWS Oficial | Função Construída no Laboratório | Definição no Glossário |
 | :--- | :--- | :--- |
-| **Amazon VPC** | Isola os servidores em sub-redes privadas sem exposição direta à internet. | Rede virtual privada e logicamente isolada dentro da nuvem AWS. |
-| **NAT Gateway** | Permite que as EC2 privadas instalem `python3`, `flask` e `boto3` via internet. | Tradutor de endereços que permite saída para a internet bloqueando conexões de entrada. |
-| **Security Groups** | Filtra o tráfego: as EC2 só aceitam requisições vindas do Load Balancer. | Firewall virtual *stateful* que opera no nível da interface de rede da instância. |
-| **AWS IAM Role** | Autoriza as EC2 a acessarem o SQS e o DynamoDB sem usar senhas fixas no código. | Identidade com permissões temporárias assumidas automaticamente por serviços AWS. |
-| **Application Load Balancer** | Ponto único de entrada (`DNS público`) que divide os acessos entre as duas AZs. | Balanceador de carga que opera na Camada 7 (HTTP/HTTPS) do modelo OSI. |
-| **Target Group** | Verifica a cada 10 segundos se o site Flask nas EC2 está respondendo (`HTTP 200`). | Grupo lógico de alvos monitorados continuamente por sondas de integridade (*Health Checks*). |
-| **Amazon EC2 (User Data)** | Hospeda o site em Flask (Frontend) e o script consumidor em Python (Backend). | Máquinas virtuais na nuvem configuradas automaticamente no boot via script shell. |
-| **Amazon SQS** | Armazena as mensagens enviadas pelo site até que o backend possa processá-las. | Fila de mensagens gerenciada para desacoplar microsserviços e sistemas distribuídos. |
-| **Amazon DynamoDB** | Armazena definitivamente cada mensagem junto com o horário de recebimento e gravação. | Banco de dados NoSQL chave-valor totalmente gerenciado de altíssima performance. |
+| **[Amazon VPC](https://aws.amazon.com/pt/vpc/)** | Isolamento lógico da rede `projeto-vpc` em sub-redes públicas e privadas. | Rede virtual dedicada que isola a infraestrutura na nuvem. |
+| **[Elastic Load Balancing (ALB)](https://aws.amazon.com/pt/elasticloadbalancing/application-load-balancer/)** | Recebe o acesso HTTP externo (`projeto-alb-vagner-toma`) e divide entre as instâncias. | Balanceador de carga de Camada 7 que distribui tráfego web entre múltiplas AZs. |
+| **[Amazon EC2](https://aws.amazon.com/pt/ec2/)** | Hospedagem de 2 servidores Web (Frontend) e 2 processadores de fila (Backend). | Capacidade computacional segura e redimensionável na nuvem (IaaS). |
+| **[AWS IAM](https://aws.amazon.com/pt/iam/)** | Role `ec2-role-vagner-tomaz` concedendo acesso seguro ao SQS e DynamoDB. | Serviço de controle de identidade e acesso baseado em políticas temporárias. |
+| **[Amazon SQS](https://aws.amazon.com/pt/sqs/)** | Fila `fila-registros-vagner-tomaz` para desacoplar o envio da gravação final. | Serviço totalmente gerenciado de enfileiramento de mensagens para microsserviços. |
+| **[Amazon DynamoDB](https://aws.amazon.com/pt/dynamodb/)** | Tabela `tabela-registros-vagner-tomaz` com chave `requestId` em modo On-Demand. | Banco de dados NoSQL gerenciado com latência de milissegundos em qualquer escala. |
 
 ---
 
-## 🤔 Decisão Arquitetural: Por que não utilizar IaC (Terraform, CloudFormation ou Kiro) nesta etapa?
+## 🩺 Evidências de Testes de Integração e Troubleshooting Técnico
 
-Uma dúvida comum em portfólios de arquitetura é o motivo de realizar o provisionamento inicial via Console AWS e scripts *User Data* em vez de partir diretamente para **Terraform**, **AWS CloudFormation** ou **Kiro**:
-
-1. **Compreensão Profunda dos Fundamentos (Anatomia dos Serviços):** A construção passo a passo no Dia 01 evidencia dependências reais de rede e segurança — como o encadeamento de IDs de Security Groups, associação de tabelas de rotas aos NAT Gateways e propagação de IAM Instance Profiles — que ferramentas de IaC abstraem.
-2. **Diagnóstico e Troubleshooting de Base:** Entender exatamente onde um *Health Check* falha ou por que um *User Data* não encontra um pacote no Linux constrói a bagagem necessária para escrever módulos Terraform limpos no futuro.
-3. **Evolução Planejada:** A codificação em Terraform consta mapeada no backlog de evolução do projeto após a validação empírica das três fases operacionais.
-
----
-
-## 🩺 Registro de Troubleshooting e Dificuldades Superadas (Controle de Qualidade)
-
-Durante a implementação e validação do Dia 01, os seguintes desafios técnicos foram diagnosticados e solucionados:
-
-| Ponto de Atenção / Erro | Sintoma Observado | Diagnóstico da Causa Raiz | Solução Aplicada |
-| :--- | :--- | :--- | :--- |
-| **1. Alvos no Target Group em estado `Unhealthy`** | O ALB retornava erro `502 Bad Gateway` ou `503 Service Unavailable` logo após criar as EC2. | O script *User Data* ainda estava instalando os pacotes `pip` (Flask/Boto3) ou o Security Group das EC2 bloqueava a sonda do ALB. | Aguardado o término do bootstrap (`systemd`) e validada a regra de entrada no `ec2-sg-vagner-tomaz` liberando a porta `80` para a origem `loadbalancer-sg-vagner-tomaz`. |
-| **2. Instâncias Privadas sem acesso aos repositórios Linux (`dnf`/`pip`)** | O script de inicialização travava ao tentar baixar o Flask na sub-rede privada. | Sub-redes privadas não possuem rota direta para o Internet Gateway. | Verificada a tabela de rotas das sub-redes privadas garantindo o apontamento do destino `0.0.0.0/0` para o **NAT Gateway** situado na sub-rede pública. |
-| **3. Falha de comunicação com SQS / DynamoDB por Região ou URL** | O Frontend apresentava erro ao submeter o formulário ou o Worker não encontrava a fila. | Divergência entre a região configurada no cliente `boto3` (`us-east-2`) e a URL da fila SQS copiada no script. | Padronização explícita de `REGION = "us-east-2"` e revisão da URL exata da `fila-registros-vagner-tomaz` e `tabela-registros-vagner-tomaz`. |
-| **4. Mensagens processadas mas não removidas da fila** | O item aparecia no DynamoDB, porém voltava a ser processado após o *Visibility Timeout*. | Necessidade de executar explicitamente o método `sqs.delete_message()` passando o `ReceiptHandle` após o `put_item`. | Confirmação do bloco `try/except` no script do `worker.py` garantindo a exclusão imediata após confirmação de gravação no banco. |
+| Etapa / Desafio Enfrentado | Diagnóstico Técnico Realizado | Solução e Comprovação Obtida |
+| :--- | :--- | :--- |
+| **1. Validação de Security Groups Encadeados** | Instâncias em sub-redes privadas não devem responder diretamente à internet, apenas ao balanceador. | Configurado `ec2-sg-vagner-tomaz` aceitando porta `80` unicamente do grupo de origem `loadbalancer-sg-vagner-tomaz` (*Zero Direct Access*). |
+| **2. Inicialização do User Data nas Sub-redes Privadas** | Instâncias privadas precisam baixar pacotes `python3-pip`, `flask` e `boto3` sem ter IP público. | Validado o roteamento de saída via **NAT Gateway** nas tabelas de rotas privadas; serviço `systemd` iniciado com sucesso. |
+| **3. Sondas de Integridade do Target Group** | Alvos levam alguns segundos após o boot até que o servidor Flask responda `HTTP 200` na rota `/`. | Acompanhado o registro no `grupo-frontend-vagner-tomaz` até ambas as instâncias (`2a` e `2b`) atingirem o estado **Healthy**. |
+| **4. Consumo e Exclusão no SQS** | Garantir que a mensagem não volte para a fila após ser gravada no DynamoDB. | Confirmada a execução do `sqs.delete_message(ReceiptHandle)` imediatamente após o `table.put_item()`, zerando a fila após o envio. |
 
 ---
 
-## ✅ Checklist de Validação e Evidências do Dia 01
+## 🤔 Por que não usamos Terraform, CloudFormation ou Kiro no Dia 01?
 
-- [x] **Tabela DynamoDB:** `tabela-registros-vagner-tomaz` ativa no modo *On-Demand* com chave `requestId`.
-- [x] **Fila SQS:** `fila-registros-vagner-tomaz` criada com *Long Polling* de 20s validado nos consumidores.
-- [x] **Isolamento de Segurança:** `ec2-sg-vagner-tomaz` aceitando tráfego HTTP unicamente do `loadbalancer-sg-vagner-tomaz`.
-- [x] **IAM Instance Profile:** Role `ec2-role-vagner-tomaz` anexada às 4 instâncias EC2 sem uso de Access Keys no código.
-- [x] **Alta Disponibilidade Frontend:** `frontend1` (`us-east-2b`) e `frontend2` (`us-east-2a`) operacionais e **Healthy** no Target Group.
-- [x] **Processamento Assíncrono Backend:** `backend1` e `backend2` executando `worker.service` no `systemd` e persistindo no DynamoDB.
-
----
-
-## 🚀 O que Pode Ser Melhorado? (Gatilhos para o Dia 02)
-
-Apesar de funcional e desacoplada, a arquitetura do Dia 01 possui **três vulnerabilidades operacionais** que serão resolvidas no **Dia 02**:
-1. **Informações Sensíveis no Código (*Hardcoded*):** A URL da fila SQS e o nome da tabela do DynamoDB estão escritos diretamente dentro dos scripts Python das instâncias.
-2. **Baixa Manutenibilidade:** Se o nome da fila ou da tabela mudar, seria necessário acessar manualmente todas as máquinas ou recriá-las para atualizar o script.
-3. **Ausência de Autorrecuperação (*Self-Healing*) e Elasticidade:** As 4 instâncias EC2 foram criadas manualmente. Se uma máquina travar ou se uma Zona inteira cair, nenhuma nova instância sobe sozinha para repor a capacidade.
-
-👉 **[Clique aqui para avançar para o Dia 02: Evoluindo a Arquitetura com Parameter Store e Auto Scaling ➡️](../dia-02/README.md)**
-
-## 🎯 Alinhamento com a Certificação AWS SAA-C03
-
-* **Domínio 1: Arquiteturas Seguras (30%):** Encadeamento de Security Groups (*Zero Direct Access*), sub-redes privadas e gestão centralizada de parâmetros via SSM sem credenciais estáticas[cite: 5, 20, 27, 32].
-* **Domínio 2: Arquiteturas Resilientes (26%):** Distribuição Multi-AZ (`us-east-2a` e `us-east-2b`), absorção de rajadas com Amazon SQS e recuperação automática com Auto Scaling[cite: 4, 18, 27, 28, 32].
-* **Domínio 3: Arquiteturas de Alto Desempenho (24%):** Balanceamento na Camada 7 via ALB, processamento via Long Polling e leitura/escrita em milissegundos no DynamoDB[cite: 4, 5, 22, 29, 32].
-* **Domínio 4: Arquiteturas com Custo Otimizado (20%):** Elasticidade sob demanda, DynamoDB On-Demand e dimensionamento fino de recursos computacionais[cite: 5, 29, 32].
-
-
-🏛️ Dia 01: Arquitetura em 3 Camadas com Desacoplamento Assíncrono
-
-## 🎯 Objetivo do Dia
-Implementar a fundação da arquitetura corporativa de 3 camadas na AWS para hospedar uma aplicação web simples, desacoplando o recebimento de dados da persistência final para suportar workloads legados ou de processamento demorado.
+* **Motivo Pedagógico:** Construir a fundação diretamente na console e via scripts *User Data* força o entendimento explícito do ciclo de rede (tabelas de rota, associação de sub-redes, Target Groups e IAM Instance Profiles).
+* **Como essas ferramentas ajudariam neste cenário?**
+  * **[Terraform](https://www.terraform.io/):** Permitiria declarar a VPC, o ALB, a fila SQS e a tabela DynamoDB em arquivos `.tf` reutilizáveis, provisionando toda a base com `terraform apply` em 3 minutos.
+  * **[AWS CloudFormation](https://aws.amazon.com/pt/cloudformation/):** Criaria uma *Stack* nativa na AWS com rollback automático caso algum recurso falhasse na criação.
+  * **Kiro:** Ajudaria a manter a especificação da arquitetura sincronizada com os scripts Python de Frontend e Backend.
 
 ---
 
-## 📐 Topologia Implementada
+## 🎯 Alinhamento e Cobertura [AWS SAA-C03](https://aws.amazon.com/pt/certification/certified-solutions-architect-associate/) — Dia 01
 
-```text
-[ Usuário / Internet ]
-         │ (HTTP :80)
-         ▼
-[ Application Load Balancer ] (Público / Multi-AZ)
-         │
-    ┌────┴────────────────────────┐
-    ▼                             ▼
-[ EC2: Frontend 1 ]         [ EC2: Frontend 2 ] (Sub-redes Privadas)
-(AZ: us-east-2b)            (AZ: us-east-2a)
-    │                             │
-    └────┬────────────────────────┘
-         │ (JSON com UUID + Payload)
-         ▼
-[ Amazon SQS: Fila Padrão ] (Buffer Assíncrono)
-         │
-    ┌────┴────────────────────────┐
-    ▼                             ▼
-[ EC2: Worker Backend 1 ]   [ EC2: Worker Backend 2 ] (Sub-redes Privadas)
-(Consumo Long Polling)       (Consumo Long Polling)
-    │                             │
-    └────┬────────────────────────┘
-         │ (Gravação NoSQL)
-         ▼
-[ Amazon DynamoDB ] (Tabela Sob Demanda)
-```
+Distribuição do peso técnico abordado especificamente na construção do **Dia 01** conforme o [Guia do Exame SAA-C03](https://docs.aws.amazon.com/pt_br/aws-certification/latest/solutions-architect-associate-03/solutions-architect-associate-03.html):
+
+| Domínio Oficial SAA-C03 | Cobertura no Dia 01 | Práticas e Melhores Práticas Aplicadas na Etapa |
+| :--- | :---: | :--- |
+| **Domínio 2: Arquiteturas Resilientes** *(Peso Oficial: 26%)* | **50%** | Distribuição Multi-AZ (`us-east-2a` e `us-east-2b`), balanceamento de carga com Health Checks e desacoplamento com fila Amazon SQS. |
+| **Domínio 1: Arquiteturas Seguras** *(Peso Oficial: 30%)* | **20%** | Alocação de servidores exclusivamente em sub-redes privadas, Security Groups encadeados e uso de IAM Role sem chaves no código. |
+| **Domínio 3: Alto Desempenho** *(Peso Oficial: 24%)* | **20%** | Arquitetura em 3 camadas, leitura eficiente com *Long Polling* (20s) e escrita NoSQL rápida no DynamoDB. |
+| **Domínio 4: Custo Otimizado** *(Peso Oficial: 20%)* | **10%** | Uso de DynamoDB On-Demand (sem custo fixo ocioso) e redução de chamadas vazias de API na fila. |
 
 ---
 
-## 🛠️ Recursos Provisionados e Configurados
+## 🚀 Resumo de Boas Práticas e O que Deve Ser Melhorado (Gatilhos para o Dia 02)
 
-* **Rede:** VPC `projeto-vpc` (`10.0.0.0/16`) em `us-east-2` com 2 sub-redes públicas e 4 privadas Multi-AZ (`us-east-2a` e `us-east-2b`), Internet Gateway e NAT Gateway[cite: 5, 17, 18, 21].
-* **Segurança:** 
-  * `loadbalancer-sg-vagner-tomaz`: porta 80 pública.
-  * `ec2-sg-vagner-tomaz`: porta 80 restrita exclusivamente ao Security Group do ALB[cite: 5, 20].
-  * `ec2-role-vagner-tomaz`: IAM Role anexada às instâncias EC2 com permissões para SQS e DynamoDB sem chaves estáticas[cite: 5, 24].
-* **Apresentação:** 2 instâncias EC2 rodando aplicação Python Flask via *User Data* atrás de um Application Load Balancer (`projeto-alb-vagner-toma`)[cite: 5, 18, 22].
-* **Mensageria:** Fila padrão `fila-registros-vagner-tomaz` (SQS) absorvendo mensagens assíncronas[cite: 5, 28].
-* **Processamento:** 2 instâncias EC2 de backend com serviços `systemd` consumindo a fila via *Long Polling* (20s)[cite: 5, 18].
-* **Persistência:** Tabela `tabela-registros-vagner-tomaz` (DynamoDB) gravando dados com eficiência de 100%[cite: 5, 20, 29, 30].
+* **Boas Práticas Conquistadas:** Isolamento de rede, ausência de credenciais AWS no código, acoplamento fraco via fila e banco gerenciado.
+* **Pontos de Melhoria (Débitos Técnicos para o Dia 02):**
+  1. **Dados Sensíveis no Script:** A URL da fila SQS e o nome da tabela DynamoDB estão fixos (*hardcoded*) dentro dos scripts Python.
+  2. **Manutenção Manual:** Qualquer mudança exige recriar ou editar manualmente cada instância EC2.
+  3. **Sem Recuperação Automática:** Se uma instância EC2 cair por falha ou pico de acesso, ela não volta sozinha (falta de Auto Scaling).
 
----
-
-## ⚠️ Diagnóstico e Débitos Técnicos Identificados 
-
-Ao final do Dia 01, foram apontados três débitos técnicos críticos para a sustentação corporativa da aplicação:
-1. **Configurações Hardcoded:** A URL da fila SQS e o nome da tabela DynamoDB estão gravados diretamente no script de aplicação das instâncias.
-2. **Falta de Agilidade Operacional:** Alterar qualquer recurso exige login manual em cada EC2 e recriação do código.
-3. **Ausência de Auto-Healing:** Se uma instância sofrer falha de hardware, pane de software ou sobrecarga, a arquitetura atual não provisiona um novo nó automaticamente[cite: 5].
-
-> 📌 *Esses problemas serão solucionados no [Dia 02](../dia-02/README.md) utilizando AWS Systems Manager Parameter Store e Auto Scaling Groups.*
-
-
-
-## 📐 Topologia Macro da Arquitetura (Mermaid.js)
-
-```mermaid
-flowchart TD
-    subgraph Internet ["🌐 Borda Externa"]
-        User(["👤 Clientes / Usuários"])
-    end
-
-    subgraph VPC ["AWS Cloud - VPC Multi-AZ (10.0.0.0/16)"]
-        subgraph PublicSubnets ["Sub-redes Públicas (AZ A & AZ B)"]
-            ALB["⚖️ Application Load Balancer (ALB)"]
-            NAT["🚪 NAT Gateways"]
-        end
-
-        subgraph PrivateWeb ["Sub-redes Privadas: Apresentação"]
-            ASG_Web["💻 Auto Scaling Group (Frontend Flask)"]
-        end
-
-        subgraph Messaging ["Camada de Buffer & Desacoplamento"]
-            SQS[("📬 Amazon SQS (Fila de Ingestão)")]
-            DLQ[("🛑 Dead Letter Queue (DLQ)")]
-            SQS -.->|Falhas Repetidas| DLQ
-        end
-
-        subgraph PrivateApp ["Sub-redes Privadas: Processamento"]
-            ASG_Back["⚙️ Auto Scaling Group (Workers Backend)"]
-        end
-
-        subgraph Storage ["Persistência de Dados & Governança"]
-            DDB[("🗄️ Amazon DynamoDB (On-Demand)")]
-            SSM["🔐 AWS Systems Manager (Parameter Store)"]
-            CW["📈 Amazon CloudWatch (Dashboards & Alarmes)"]
-        end
-    end
-
-    User -->|HTTP :80| ALB
-    ALB -->|Zero Direct Access| ASG_Web
-    ASG_Web -->|Mensagem Assíncrona com UUID| SQS
-    SQS -->|Long Polling 20s| ASG_Back
-    ASG_Back -->|Gravação NoSQL| DDB
-    ASG_Web -.->|Busca Parâmetros| SSM
-    ASG_Back -.->|Busca Parâmetros| SSM
-    ASG_Back -.->|Métricas| CW
-    PrivateWeb -.->|Tráfego de Saída| NAT
-    PrivateApp -.->|Tráfego de Saída| NAT
+👉 **[Avançar para o Dia 02: Solucionando Segurança e Escalabilidade com Parameter Store e Auto Scaling ➡️](../dia-02/README.md)**
