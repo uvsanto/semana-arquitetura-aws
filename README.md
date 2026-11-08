@@ -236,7 +236,3 @@ Como o esforço de arquitetura se distribuiu entre os 4 domínios da **[AWS SAA-
 | **10** | **Processamento** | Leitura via *Long Polling* (20s) e exclusão automática da mensagem (`DeleteMessage`). | ✅ Comprovado |
 | **11** | **Persistência Final** | Registros encontrados no DynamoDB com carimbos `received_at` e `processed_at`. | ✅ Comprovado |
 
----
-
-## 🔒 Política de Manutenção do Ambiente (Ordem de Avaliação)
-> **Aviso Importante de Governança:** Em estrito cumprimento às orientações do **Prof. Ednilson Cipolla**, **nenhum recurso dos Dias 01, 02 e 03 foi deletado ao final de cada etapa**. Toda a infraestrutura permanece ativa e monitorada para permitir a auditoria técnica, coleta histórica de métricas no Amazon CloudWatch e validação final do projeto.
