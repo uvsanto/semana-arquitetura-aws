@@ -41,7 +41,7 @@ A **[Amazon Web Services (AWS)](https://aws.amazon.com/pt/)** é a plataforma de
 
 ---
 
-## 💡 O Propósito do Desafio (Explicado de Forma Simples para Todos)
+## 💡 O Propósito do Desafio 
 
 Imagine uma bilheteria de um grande show ou um site de vendas na Black Friday. Em um sistema comum, quando **10 mil pessoas clicam em "Enviar" ao mesmo tempo**, o servidor do site tenta receber o cliente e gravar no banco de dados no mesmo instante. O resultado? O banco de dados sobrecarrega, a tela trava e o sistema inteiro cai.
 
