@@ -1,80 +1,113 @@
-# 🛡️ Dia 02 — Evoluindo a Arquitetura: Segurança com Parameter Store e Elasticidade com Auto Scaling
-
-[⬅️ Voltar para o Dia 01](../dia-01/README.md) | [🏠 Página Principal](../README.md) | [Avançar para o Dia 03: Operação e Resiliência ➡️](../dia-03/README.md)
-
----
-
-## 🎯 Descrição e Objetivo Pedagógico da Etapa
-
-No **Dia 02**, resolvemos os débitos técnicos de segurança, governança e disponibilidade identificados na fundação do projeto:
-1. **Remoção de Dados Hardcoded:** Extraímos a URL da fila SQS e o nome da tabela DynamoDB de dentro do código Python e os armazenamos de forma centralizada e segura no **AWS Systems Manager Parameter Store**.
-2. **Gerenciamento Zero-SSH:** Habilitamos o **AWS Systems Manager Session Manager**, permitindo acesso administrativo ao terminal das instâncias privadas diretamente pelo navegador/CLI com auditoria IAM, sem abrir a porta 22 (SSH) e sem usar chaves `.pem`.
-3. **Resiliência e Autoescalonamento:** Substituímos as instâncias manuais por **Launch Templates** (modelos de inicialização padronizados) gerenciados por **Auto Scaling Groups (ASG)** para o Frontend e para o Backend, garantindo reposição automática em caso de falha e criação de uma **Dead Letter Queue (DLQ)** no SQS.
+<div align="center">
+  <h1>🛡️ Dia 02 — Evoluindo a Arquitetura</h1>
+  <h3>Segurança Centralizada com Parameter Store, Acesso Zero-SSH e Elasticidade com Auto Scaling</h3>
+  <p>
+    <a href="../dia-01/README.md">⬅️ Voltar para o Dia 01</a> • 
+    <a href="../README.md">🏠 Página Principal</a> • 
+    <a href="../dia-03/README.md">Avançar para o Dia 03: Operação e Resiliência ➡️</a>
+  </p>
+</div>
 
 ---
 
-## 📐 Topologia Evoluída — Cenário Dia 02
+## 🎯 Descrição Didática do Desafio (O Projeto do Dia 02)
+
+No **Dia 02**, evoluímos a arquitetura do Dia 01 para resolver três problemas críticos de ambientes produtivos:
+1. **Fim das Configurações Expostas no Código:** Movemos a URL da fila SQS e o nome da tabela DynamoDB para o **[AWS Systems Manager Parameter Store](https://aws.amazon.com/pt/systems-manager/features/#Parameter_Store)**. Agora, as máquinas buscam esses valores dinamicamente na inicialização.
+2. **Acesso Administrativo Seguro (Zero-SSH):** Implementamos o **[AWS Systems Manager Session Manager](https://aws.amazon.com/pt/systems-manager/features/#Session_Manager)**, eliminando a necessidade de abrir a porta 22 (SSH) ou gerenciar chaves `.pem`.
+3. **Alta Disponibilidade e Autoescalonamento:** Criamos **Launch Templates** e configuramos **[Amazon EC2 Auto Scaling Groups (ASG)](https://aws.amazon.com/pt/ec2/autoscaling/)** para o Frontend e para o Backend, além de acoplar uma **Dead Letter Queue (DLQ)** no SQS para reter mensagens com falha.
+
+---
+
+## 📐 Topologia da Arquitetura — Cenário Dia 02 (Mermaid.js)
 
 ```mermaid
 flowchart TB
-    ALB["⚖️ Application Load Balancer\n(Multi-AZ)"] --> ASG_FE
+    ALB["⚖️ Application Load Balancer\n(projeto-alb-vagner-toma)"] -->|Target Group :80| ASG_FE
 
-    subgraph ASG_FE ["🔄 Auto Scaling Group — Frontend (Min: 2 | Desejado: 2 | Máx: 4)"]
-        LT_FE["📄 Launch Template Frontend\n(Busca configs no Parameter Store)"]
-        FE_A["💻 EC2 Frontend (us-east-2a)"]
-        FE_B["💻 EC2 Frontend (us-east-2b)"]
+    subgraph VPC ["☁️ AWS Cloud — VPC: projeto-vpc (10.0.0.0/16) | Região: us-east-2"]
+        subgraph ASG_FE ["🔄 Auto Scaling Group: Frontend (Sub-redes Privadas 2a e 2b)"]
+            LT_FE["📄 Launch Template Frontend\n(Lê SSM Parameter Store)"]
+            FE_Nodes["💻 Instâncias EC2 Flask\n(Auto-Healing Ativo)"]
+        end
+
+        subgraph Messaging ["📬 Camada de Mensageria Resiliente"]
+            SQS[("Amazon SQS Principal\nfila-registros-vagner-tomaz")]
+            DLQ[("🛑 Dead Letter Queue (DLQ)\nIsolamento de Mensagens Falhas")]
+            SQS -.->|MaxReceiveCount Excedido| DLQ
+        end
+
+        subgraph ASG_BE ["⚙️ Auto Scaling Group: Backend Workers (Sub-redes Privadas 2a e 2b)"]
+            LT_BE["📄 Launch Template Backend\n(Lê SSM Parameter Store)"]
+            BE_Nodes["⚙️ Instâncias EC2 Workers\n(Auto-Healing Ativo)"]
+        end
+
+        subgraph SecGov ["🔐 Governança, Configuração e Dados"]
+            SSM_PS["🔐 SSM Parameter Store\n(URL SQS & Tabela DynamoDB)"]
+            SSM_SM["🖥️ SSM Session Manager\n(Acesso Remoto Sem Porta SSH)"]
+            DDB[("🗄️ Amazon DynamoDB\ntabela-registros-vagner-tomaz")]
+        end
     end
 
-    subgraph Messaging ["📬 Mensageria Resiliente"]
-        SQS[("Amazon SQS Principal")]
-        DLQ[("🛑 Dead Letter Queue (DLQ)")]
-        SQS -.->|Falhas de Processamento| DLQ
-    end
-
-    subgraph ASG_BE ["⚙️ Auto Scaling Group — Backend (Min: 2 | Desejado: 2 | Máx: 4)"]
-        LT_BE["📄 Launch Template Backend\n(Busca configs no Parameter Store)"]
-        BE_A["⚙️ EC2 Worker (us-east-2a)"]
-        BE_B["⚙️ EC2 Worker (us-east-2b)"]
-    end
-
-    SSM["🔐 AWS SSM Parameter Store\n• /app/sqs_queue_url\n• /app/dynamodb_table"]
-    DDB[("🗄️ Amazon DynamoDB")]
-
-    ASG_FE -->|Envia Payload| SQS
-    SQS -->|Long Polling| ASG_BE
-    ASG_BE -->|Grava Registro| DDB
-    SSM -.->|Injeção Dinâmica via Boto3| ASG_FE
-    SSM -.->|Injeção Dinâmica via Boto3| ASG_BE
+    ASG_FE -->|SendMessage| SQS
+    SQS -->|Long Polling 20s| ASG_BE
+    ASG_BE -->|PutItem| DDB
+    SSM_PS -.->|GetParameter no Boot| ASG_FE
+    SSM_PS -.->|GetParameter no Boot| ASG_BE
+    SSM_SM -.->|Console Seguro IAM| ASG_FE
+    SSM_SM -.->|Console Seguro IAM| ASG_BE
 ```
 
 ---
 
-## 🛠️ Tecnologias Adicionadas no Dia 02 e Glossário
+## 🛠️ Tecnologias AWS Utilizadas e Glossário da Etapa
 
-| Serviço / Recurso | Função Prática no Dia 02 | Conceito de Glossário |
+| Serviço / Recurso AWS | Função Construída no Dia 02 | Definição no Glossário |
 | :--- | :--- | :--- |
-| **SSM Parameter Store** | Guarda a URL da fila SQS e o nome da tabela DynamoDB fora do código da aplicação. | Repositório hierárquico gerenciado para armazenamento seguro de parâmetros e segredos. |
-| **SSM Session Manager** | Permite abrir um terminal seguro nas EC2 privadas sem precisar de IP público ou porta 22. | Funcionalidade do Systems Manager para acesso remoto auditável via túnel seguro do agente SSM. |
-| **Launch Template** | Define a receita padrão da máquina (AMI Amazon Linux 2023, tipo `t2.micro`, IAM Role, SG e User Data). | Modelo imutável e versionado que especifica como novas instâncias EC2 devem ser provisionadas. |
-| **Auto Scaling Group (ASG)** | Mantém sempre o número desejado de máquinas no ar e substitui instâncias defeituosas sozinho. | Serviço que gerencia frotas de EC2, ajustando a capacidade horizontalmente conforme políticas definidas. |
-| **Dead Letter Queue (DLQ)** | Recebe mensagens que falharam repetidamente para não travar a fila principal. | Fila secundária usada para isolar mensagens não processadas para posterior depuração. |
+| **[SSM Parameter Store](https://aws.amazon.com/pt/systems-manager/features/#Parameter_Store)** | Armazena a URL da fila SQS e o nome da tabela DynamoDB fora dos scripts Python. | Armazenamento hierárquico seguro para gerenciamento de configurações e segredos. |
+| **[SSM Session Manager](https://aws.amazon.com/pt/systems-manager/features/#Session_Manager)** | Permite acessar o terminal Linux das EC2 privadas sem abrir porta 22 nem usar Bastion Host. | Gerenciamento remoto seguro de instâncias via agente SSM autenticado pelo IAM. |
+| **Launch Templates** | Padroniza a criação das máquinas (AMI, tipo de instância, Security Group, IAM Role e User Data). | Modelo versionado que define os parâmetros de inicialização automatizada do EC2. |
+| **[EC2 Auto Scaling (ASG)](https://aws.amazon.com/pt/ec2/autoscaling/)** | Substitui automaticamente qualquer instância que fique indisponível e escala sob alta demanda. | Serviço que mantém a disponibilidade da frota adicionando ou removendo EC2 automaticamente. |
+| **Dead Letter Queue (DLQ)** | Fila secundária vinculada ao SQS principal para reter mensagens que falhem repetidamente. | Mecanismo de isolamento de falhas para depuração sem perda de dados. |
 
 ---
 
-## 🩺 Registro de Troubleshooting do Dia 02
+## 🩺 Evidências de Testes e Troubleshooting Técnico — Dia 02
 
-| Problema Enfrentado | Causa Raiz | Solução Aplicada |
+| Desafio / Problema Enfrentado | Diagnóstico da Causa Raiz | Solução Aplicada e Validada |
 | :--- | :--- | :--- |
-| **Erro `AccessDeniedException` ao chamar `ssm:GetParameter`** | A IAM Role criada no Dia 01 tinha permissão apenas para SQS e DynamoDB. | Adicionada a permissão de leitura ao Parameter Store (`AmazonSSMReadOnlyAccess` / `AmazonSSMManagedInstanceCore`) na role `ec2-role-vagner-tomaz`. |
-| **Novas instâncias do ASG do Frontend não recebem tráfego do ALB** | O Auto Scaling Group subiu as máquinas, mas não estava vinculado ao Target Group do balanceador. | Configurada a integração de Load Balancing no ASG associando-o diretamente ao `grupo-frontend-vagner-tomaz` e habilitando os *ELB Health Checks*. |
+| **1. Permissão de Leitura no Parameter Store e SSM Agent** | As instâncias do ASG precisavam buscar os parâmetros no SSM e aceitar conexão do Session Manager. | Atualizada a IAM Role `ec2-role-vagner-tomaz` anexando a política gerenciada `AmazonSSMManagedInstanceCore` e permissão `ssm:GetParameter`. |
+| **2. Registro Automático das Instâncias do ASG no Load Balancer** | Quando o Auto Scaling cria uma nova EC2 de Frontend, ela precisa entrar sozinha no Target Group do ALB. | Vinculado o `grupo-frontend-vagner-tomaz` diretamente na configuração de *Load Balancing* do Auto Scaling Group do Frontend, com *ELB Health Check* ativo. |
+| **3. Atualização de Recursos sem Recompilar Código** | Antes, mudar o nome da fila exigia alterar o código em cada máquina. | Com o `boto3.client('ssm').get_parameter()`, o script Python lê o valor atualizado diretamente do Parameter Store sem tocar no código-fonte. |
 
 ---
 
-## 🚀 O que Pode Ser Melhorado? (Gatilhos para o Dia 03)
+## 🤔 Papel de IaC (Terraform, CloudFormation ou Kiro) neste Cenário
 
-A arquitetura agora é segura e elástica, mas ainda carece de **visibilidade operacional e validação sob fogo real**:
-1. Como acompanhar todas as camadas (ALB, ASG e SQS) em uma única tela sem navegar por vários menus do console?
-2. Como escalar os Workers de Backend com base no acúmulo real de mensagens na fila (*Backlog*) em vez de olhar apenas para uso de CPU?
-3. Como provar que o Auto Scaling realmente recupera o ambiente quando máquinas são destruídas?
+No Dia 02, a introdução de **Launch Templates** e **Parameter Store** já é um passo nativo em direção à Infraestrutura Imutável. 
+* Com **[Terraform](https://www.terraform.io/)** ou **[AWS CloudFormation](https://aws.amazon.com/pt/cloudformation/)**, os recursos `aws_ssm_parameter`, `aws_launch_template` e `aws_autoscaling_group` podem ser integrados automaticamente: o Terraform cria a fila SQS, grava a URL gerada dentro do SSM Parameter Store automaticamente e já injeta a referência no Launch Template sem nenhuma cópia manual de URLs.
 
-👉 **[Clique aqui para avançar para o Dia 03: Operação, Observabilidade e Engenharia do Caos ➡️](../dia-03/README.md)**
+---
+
+## 🎯 Alinhamento e Cobertura [AWS SAA-C03](https://aws.amazon.com/pt/certification/certified-solutions-architect-associate/) — Dia 02
+
+Distribuição do peso técnico abordado especificamente na evolução do **Dia 02** conforme o [Guia do Exame SAA-C03](https://docs.aws.amazon.com/pt_br/aws-certification/latest/solutions-architect-associate-03/solutions-architect-associate-03.html):
+
+| Domínio Oficial SAA-C03 | Cobertura no Dia 02 | Práticas e Melhores Práticas Aplicadas na Etapa |
+| :--- | :---: | :--- |
+| **Domínio 1: Arquiteturas Seguras** *(Peso Oficial: 30%)* | **45%** | Externalização de configurações críticas no SSM Parameter Store, eliminação de portas SSH expostas com Session Manager e IAM Roles refinadas. |
+| **Domínio 2: Arquiteturas Resilientes** *(Peso Oficial: 26%)* | **30%** | Implementação de Auto Scaling Groups Multi-AZ com *Self-Healing*, Launch Templates imutáveis e Dead Letter Queue (DLQ). |
+| **Domínio 3: Alto Desempenho** *(Peso Oficial: 24%)* | **15%** | Provisionamento padronizado e escalabilidade horizontal automática para absorver aumentos de carga. |
+| **Domínio 4: Custo Otimizado** *(Peso Oficial: 20%)* | **10%** | Redução automática de instâncias (*Scale-In*) quando a demanda diminui, pagando apenas pela capacidade necessária. |
+
+---
+
+## 🚀 Resumo de Boas Práticas e O que Deve Ser Melhorado (Gatilhos para o Dia 03)
+
+* **Boas Práticas Conquistadas:** Zero segredos/URLs no código, Zero portas SSH abertas e recuperação automática de instâncias (*Auto-Healing*).
+* **Pontos de Melhoria (Gatilhos para o Dia 03):**
+  1. **Falta de Visibilidade Centralizada:** A arquitetura já escala e se recupera, mas não temos um painel único mostrando o que está acontecendo em tempo real.
+  2. **Métrica de Escala do Backend:** Escalar os Workers de Backend apenas por CPU não é ideal se a fila SQS estiver enchendo; precisamos escalar pelo tamanho do **Backlog da fila**.
+  3. **Validação sob Falha Real:** Precisamos provocar falhas de propósito (*Chaos Engineering*) para comprovar que o ambiente se recupera sozinho.
+
+👉 **[Avançar para o Dia 03: Operação, Observabilidade e Engenharia do Caos ➡️](../dia-03/README.md)**
