@@ -1,0 +1,20 @@
+# Terraform
+*.tfstate
+*.tfstate.*
+.terraform/
+*.tfvars
+
+# Segredos
+*.pem
+*.key
+.env
+.env.*
+credentials
+
+# Prints ORIGINAIS (sem tarja): nunca versionar
+evidence/_originais/
+
+# Editor / SO
+.DS_Store
+Thumbs.db
+.vscode/

@@ -1,129 +1,144 @@
-<div align="center">
-  <h1>🏗️ Dia 01 — Construindo a Solução</h1>
-  <h3>Fundação da Arquitetura em 3 Camadas com Desacoplamento Assíncrono na AWS</h3>
-  <p>
-    <a href="../README.md">⬅️ Voltar para a Página Principal</a> • 
-    <a href="../dia-02/README.md">Avançar para o Dia 02: Evoluindo a Arquitetura ➡️</a>
-  </p>
-</div>
+# Semana de Arquitetura AWS: construindo, evoluindo e operando uma aplicação web em 3 camadas
 
----
+Em três dias de laboratório da **Escola da Nuvem**, parti de uma aplicação web simples e a transformei, passo a passo, em uma arquitetura distribuída em duas zonas de disponibilidade, desacoplada por fila, mais segura e observável. Este repositório documenta o que construí, **por que** cada decisão foi tomada, os erros que enfrentei e as melhorias que eu faria em produção.
 
-## 🎯 Descrição Didática do Desafio (O Projeto do Dia 01)
+**Autor:** Vagner Tomaz dos Santos · Analista de Infraestrutura de TI em transição para Arquitetura Cloud
+**Região:** `us-east-2` (Ohio)
 
-Neste primeiro desafio da **Semana de Arquitetura AWS (Turma C9 SET - DPCN 17)**, sob orientação do **[Prof. Ednilson Cipolla](https://br.linkedin.com/in/ednilsoncipolla)** na **[Escola da Nuvem](https://escoladanuvem.org/)**, construímos a base de uma aplicação web corporativa dividida em **3 níveis lógicos (Apresentação, Mensageria/Processamento e Persistência)**.
+## Transparência: o que é do curso e o que é meu
 
-**Por que usar essa arquitetura?**
-Em sistemas legados ou que exigem processamento demorado, conectar o site diretamente ao banco de dados é um risco: se uma camada falhar ou lentificar, todo o sistema cai. Para resolver isso, introduzimos o **[Amazon SQS](https://aws.amazon.com/pt/sqs/)** entre o **Frontend** e o **Backend** (acoplamento fraco). O usuário envia uma mensagem pelo site, o servidor web deposita essa requisição na fila e libera o usuário imediatamente. Em segundo plano, os servidores de Backend leem a fila e salvam no **[Amazon DynamoDB](https://aws.amazon.com/pt/dynamodb/)**.
+O roteiro, os scripts e a conta do laboratório são da **Escola da Nuvem** (instrutor: Ednilson Cipolla) e não são reproduzidos aqui. Este repositório contém meu trabalho sobre o laboratório: diagramas, decisões (ADRs), evidências, análise crítica e melhorias.
+A rede (VPC, sub-redes, Internet Gateway e NAT Gateway) já existia como pré-requisito ([baseline](docs/01-assessment.md)).
 
----
+## A jornada em 3 etapas
 
-## 📐 Topologia da Arquitetura — Cenário Dia 01 (Mermaid.js)
+| Etapa | O que mudou | Serviços principais | Página |
+|---|---|---|---|
+| **Dia 1: Construindo a base** | Aplicação de 3 camadas desacoplada por fila | EC2, ALB, SQS, DynamoDB, IAM | [dia-01](dia-01/README.md) |
+| **Dia 2: Evoluindo a arquitetura** | Configuração fora do código, recuperação automática, acesso sem SSH | Parameter Store, ASG, Session Manager, CloudFront, DLQ | [dia-02](dia-02/README.md) |
+| **Dia 3: Operando e testando** | Observabilidade, falhas provocadas, ALB protegido, escala por backlog | CloudWatch, SNS, Cost Anomaly Detection | [dia-03](dia-03/README.md) |
+
+## Visão geral do ambiente (baseline)
+
+| Item | Valor |
+|---|---|
+| Região / VPC | `us-east-2` · `projeto-vpc` (`10.0.0.0/16`) |
+| Sub-redes | 2 públicas e 4 privadas, em 2 AZs |
+| Fornecido pelo curso | VPC, sub-redes, Internet Gateway, NAT Gateway, conta restrita |
+| Construído por mim | Tudo acima da rede: dados, fila, computação, balanceamento, segurança, operação |
+
+## Arquitetura (estado final)
 
 ```mermaid
 flowchart LR
-    User(["👤 Usuários Web"]) -->|HTTP :80| ALB["⚖️ Application Load Balancer\n(projeto-alb-vagner-toma)\nSub-redes Públicas (2a / 2b)"]
-
-    subgraph VPC ["☁️ AWS Cloud — VPC: projeto-vpc (10.0.0.0/16) | Região: us-east-2"]
-        subgraph WebTier ["1ª Camada: Frontend (Sub-redes Privadas)"]
-            FE1["💻 EC2: frontend1-vagner-tomaz\n(AZ: us-east-2b | Python Flask)"]
-            FE2["💻 EC2: frontend2-vagner-tomaz\n(AZ: us-east-2a | Python Flask)"]
-        end
-
-        subgraph BufferTier ["2ª Camada: Desacoplamento Assíncrono"]
-            SQS[("📬 Amazon SQS\nfila-registros-vagner-tomaz")]
-        end
-
-        subgraph AppTier ["2ª Camada: Backend Workers (Sub-redes Privadas)"]
-            BE1["⚙️ EC2: backend1-vagner-tomaz\n(AZ: us-east-2a | Worker systemd)"]
-            BE2["⚙️ EC2: backend2-vagner-tomaz\n(AZ: us-east-2b | Worker systemd)"]
-        end
-
-        subgraph DataTier ["3ª Camada: Banco de Dados NoSQL"]
-            DDB[("🗄️ Amazon DynamoDB\ntabela-registros-vagner-tomaz\nPK: requestId (On-Demand)")]
-        end
+  U["Usuários"] --> CF["Amazon CloudFront"]
+  CF -->|"único acesso permitido ao ALB"| ALB
+  subgraph REG["Região us-east-2"]
+    subgraph VPC["VPC projeto-vpc - 10.0.0.0/16"]
+      subgraph PUB["Sub-redes públicas"]
+        ALB["Application Load Balancer"]
+      end
+      NAT["NAT Gateway regional"]
+      subgraph ASGF["ASG frontend - sub-redes privadas"]
+        FE["EC2 Frontend"]
+      end
+      subgraph ASGB["ASG backend - sub-redes privadas"]
+        BE["EC2 Backend"]
+      end
     end
-
-    ALB -->|Target Group :80\ngrupo-frontend-vagner-tomaz| FE1
-    ALB -->|Target Group :80\ngrupo-frontend-vagner-tomaz| FE2
-    FE1 -->|SendMessage JSON + UUID| SQS
-    FE2 -->|SendMessage JSON + UUID| SQS
-    SQS -->|Long Polling 20s| BE1
-    SQS -->|Long Polling 20s| BE2
-    BE1 -->|PutItem NoSQL| DDB
-    BE2 -->|PutItem NoSQL| DDB
+    SQS[["Amazon SQS"]]
+    DLQ[["SQS DLQ"]]
+    DDB[("Amazon DynamoDB")]
+    SSM["SSM Parameter Store"]
+    CW["CloudWatch - dashboard e alarmes"]
+    SNS["Amazon SNS"]
+    CAD["Cost Anomaly Detection"]
+  end
+  TEC["Time técnico - e-mail"]
+  ALB --> FE
+  FE --> SQS
+  SQS --> BE
+  SQS -.-> DLQ
+  BE --> DDB
+  FE -.-> SSM
+  BE -.-> SSM
+  SQS -.->|"backlog por instância"| ASGB
+  ALB -.->|"métricas"| CW
+  SQS -.->|"métricas"| CW
+  DLQ -.->|"métricas"| CW
+  CW -->|"alarme"| SNS
+  SNS --> TEC
+  CAD -->|"alerta de custo"| TEC
 ```
 
----
+Os diagramas de cada etapa estão nas páginas dos dias. Boas práticas para os desenhos visuais: [diagrams/README.md](diagrams/README.md).
 
-## 🌐 Topologia e Endereçamento de Sub-redes
+## Componentes em resumo
 
-A rede `projeto-vpc` (`10.0.0.0/16`) em Ohio (`us-east-2`) foi segmentada em duas Zonas de Disponibilidade para garantir tolerância a falhas:
+| Camada | Componente | Detalhe |
+|---|---|---|
+| Borda | CloudFront + ALB | Entrada única; o ALB só aceita o CloudFront (Dia 3) |
+| Apresentação | EC2 Flask em Auto Scaling Group | Envia a requisição para a fila |
+| Desacoplamento | SQS + DLQ | Absorve picos; isola mensagens com erro |
+| Processamento | EC2 workers em Auto Scaling Group | Lê a fila, grava e apaga; escala por backlog |
+| Persistência | DynamoDB | Chave `requestId` |
+| Configuração e acesso | Parameter Store, Session Manager | Sem configuração no código e sem SSH |
+| Operação | CloudWatch, SNS, Cost Anomaly Detection | Painel, alertas e custo |
 
-| Sub-rede | Zona (AZ) | Escopo | Roteamento de Saída (`0.0.0.0/0`) | Recursos Alocados |
-| :--- | :---: | :---: | :--- | :--- |
-| **Sub-rede Pública 1** | `us-east-2a` | Pública | [Internet Gateway (IGW)](https://docs.aws.amazon.com/pt_br/vpc/latest/userguide/VPC_Internet_Gateway.html) | Nó do ALB + NAT Gateway A |
-| **Sub-rede Pública 2** | `us-east-2b` | Pública | [Internet Gateway (IGW)](https://docs.aws.amazon.com/pt_br/vpc/latest/userguide/VPC_Internet_Gateway.html) | Nó do ALB + NAT Gateway B |
-| **Sub-rede Privada 1** | `us-east-2a` | Privada | [NAT Gateway A](https://docs.aws.amazon.com/pt_br/vpc/latest/userguide/vpc-nat-gateway.html) | `frontend2-vagner-tomaz` (Flask) |
-| **Sub-rede Privada 2** | `us-east-2b` | Privada | [NAT Gateway B](https://docs.aws.amazon.com/pt_br/vpc/latest/userguide/vpc-nat-gateway.html) | `frontend1-vagner-tomaz` (Flask) |
-| **Sub-rede Privada 3** | `us-east-2a` | Privada | [NAT Gateway A](https://docs.aws.amazon.com/pt_br/vpc/latest/userguide/vpc-nat-gateway.html) | `backend1-vagner-tomaz` (Worker) |
-| **Sub-rede Privada 4** | `us-east-2b` | Privada | [NAT Gateway B](https://docs.aws.amazon.com/pt_br/vpc/latest/userguide/vpc-nat-gateway.html) | `backend2-vagner-tomaz` (Worker) |
+Explicação camada a camada, glossário, checklist e melhorias: nas páginas de cada dia.
 
----
+## Decisões de arquitetura (ADRs)
 
-## 🛠️ Tecnologias AWS Utilizadas e Glossário da Etapa
+| ADR | Decisão |
+|---|---|
+| [0001](docs/03-adr/0001-sqs-entre-frontend-e-backend.md) | SQS entre frontend e backend |
+| [0002](docs/03-adr/0002-dynamodb-para-persistencia.md) | DynamoDB para persistência |
+| [0003](docs/03-adr/0003-parameter-store-para-configuracao.md) | Parameter Store para configuração |
+| [0004](docs/03-adr/0004-escala-do-backend-por-backlog.md) | Escala do backend por backlog |
+| [0005](docs/03-adr/0005-alb-acessivel-somente-via-cloudfront.md) | ALB acessível somente via CloudFront |
+| [0006](docs/03-adr/0006-por-que-nao-usar-iac-neste-laboratorio.md) | Por que não usei infraestrutura como código |
 
-| Serviço AWS Oficial | Função Construída no Laboratório | Definição no Glossário |
-| :--- | :--- | :--- |
-| **[Amazon VPC](https://aws.amazon.com/pt/vpc/)** | Isolamento lógico da rede `projeto-vpc` em sub-redes públicas e privadas. | Rede virtual dedicada que isola a infraestrutura na nuvem. |
-| **[Elastic Load Balancing (ALB)](https://aws.amazon.com/pt/elasticloadbalancing/application-load-balancer/)** | Recebe o acesso HTTP externo (`projeto-alb-vagner-toma`) e divide entre as instâncias. | Balanceador de carga de Camada 7 que distribui tráfego web entre múltiplas AZs. |
-| **[Amazon EC2](https://aws.amazon.com/pt/ec2/)** | Hospedagem de 2 servidores Web (Frontend) e 2 processadores de fila (Backend). | Capacidade computacional segura e redimensionável na nuvem (IaaS). |
-| **[AWS IAM](https://aws.amazon.com/pt/iam/)** | Role `ec2-role-vagner-tomaz` concedendo acesso seguro ao SQS e DynamoDB. | Serviço de controle de identidade e acesso baseado em políticas temporárias. |
-| **[Amazon SQS](https://aws.amazon.com/pt/sqs/)** | Fila `fila-registros-vagner-tomaz` para desacoplar o envio da gravação final. | Serviço totalmente gerenciado de enfileiramento de mensagens para microsserviços. |
-| **[Amazon DynamoDB](https://aws.amazon.com/pt/dynamodb/)** | Tabela `tabela-registros-vagner-tomaz` com chave `requestId` em modo On-Demand. | Banco de dados NoSQL gerenciado com latência de milissegundos em qualquer escala. |
+## Aderência ao exame AWS SAA-C03 e a frameworks
 
----
+- **Pontuação por domínio** (indicador didático próprio, com pesos oficiais 30/26/24/20): [docs/04](docs/04-saa-c03-scorecard.md).
 
-## 🩺 Evidências de Testes de Integração e Troubleshooting Técnico
+| Cenário | Potencial | Declarado | Comprovado |
+|---|---|---|---|
+| Dia 1 | 32,3% | 28,3% | 3,2% |
+| Dias 1+2 | 57,7% | 28,3% | 3,2% |
+| Dias 1+2+3 | 72,0% | 28,3% | 3,2% |
 
-| Etapa / Desafio Enfrentado | Diagnóstico Técnico Realizado | Solução e Comprovação Obtida |
-| :--- | :--- | :--- |
-| **1. Validação de Security Groups Encadeados** | Instâncias em sub-redes privadas não devem responder diretamente à internet, apenas ao balanceador. | Configurado `ec2-sg-vagner-tomaz` aceitando porta `80` unicamente do grupo de origem `loadbalancer-sg-vagner-tomaz` (*Zero Direct Access*). |
-| **2. Inicialização do User Data nas Sub-redes Privadas** | Instâncias privadas precisam baixar pacotes `python3-pip`, `flask` e `boto3` sem ter IP público. | Validado o roteamento de saída via **NAT Gateway** nas tabelas de rotas privadas; serviço `systemd` iniciado com sucesso. |
-| **3. Sondas de Integridade do Target Group** | Alvos levam alguns segundos após o boot até que o servidor Flask responda `HTTP 200` na rota `/`. | Acompanhado o registro no `grupo-frontend-vagner-tomaz` até ambas as instâncias (`2a` e `2b`) atingirem o estado **Healthy**. |
-| **4. Consumo e Exclusão no SQS** | Garantir que a mensagem não volte para a fila após ser gravada no DynamoDB. | Confirmada a execução do `sqs.delete_message(ReceiptHandle)` imediatamente após o `table.put_item()`, zerando a fila após o envio. |
+*"Potencial" é o que o roteiro prevê; "Comprovado" só conta itens com evidência. Atualizo à medida que anexo as provas.*
 
----
+- **Well-Architected, LGPD e CAF:** [docs/05](docs/05-frameworks.md). Não declaro conformidade com LGPD nem adoção do CAF; explico por quê.
 
-## 🤔 Por que não usamos Terraform, CloudFormation ou Kiro no Dia 01?
+## Evidências e troubleshooting
 
-* **Motivo Pedagógico:** Construir a fundação diretamente na console e via scripts *User Data* força o entendimento explícito do ciclo de rede (tabelas de rota, associação de sub-redes, Target Groups e IAM Instance Profiles).
-* **Como essas ferramentas ajudariam neste cenário?**
-  * **[Terraform](https://www.terraform.io/):** Permitiria declarar a VPC, o ALB, a fila SQS e a tabela DynamoDB em arquivos `.tf` reutilizáveis, provisionando toda a base com `terraform apply` em 3 minutos.
-  * **[AWS CloudFormation](https://aws.amazon.com/pt/cloudformation/):** Criaria uma *Stack* nativa na AWS com rollback automático caso algum recurso falhasse na criação.
-  * **Kiro:** Ajudaria a manter a especificação da arquitetura sincronizada com os scripts Python de Frontend e Backend.
+Política, legenda e modelo de registro de erros em [evidence/](evidence/README.md). Os prints do Dia 1 não foram salvos; o checklist daquele dia é registro textual (📝) e está identificado como tal.
 
----
+## Estado do projeto
 
-## 🎯 Alinhamento e Cobertura [AWS SAA-C03](https://aws.amazon.com/pt/certification/certified-solutions-architect-associate/) — Dia 01
+- [x] Estrutura, ADRs e documentação-base
+- [ ] Dia 1: checklist registrado (📝)
+- [ ] Dia 2: evidências
+- [ ] Dia 3: Game Day e evidências
+- [ ] Teardown: **somente após a ordem do professor**
 
-Distribuição do peso técnico abordado especificamente na construção do **Dia 01** conforme o [Guia do Exame SAA-C03](https://docs.aws.amazon.com/pt_br/aws-certification/latest/solutions-architect-associate-03/solutions-architect-associate-03.html):
+## Estrutura do repositório
 
-| Domínio Oficial SAA-C03 | Cobertura no Dia 01 | Práticas e Melhores Práticas Aplicadas na Etapa |
-| :--- | :---: | :--- |
-| **Domínio 2: Arquiteturas Resilientes** *(Peso Oficial: 26%)* | **50%** | Distribuição Multi-AZ (`us-east-2a` e `us-east-2b`), balanceamento de carga com Health Checks e desacoplamento com fila Amazon SQS. |
-| **Domínio 1: Arquiteturas Seguras** *(Peso Oficial: 30%)* | **20%** | Alocação de servidores exclusivamente em sub-redes privadas, Security Groups encadeados e uso de IAM Role sem chaves no código. |
-| **Domínio 3: Alto Desempenho** *(Peso Oficial: 24%)* | **20%** | Arquitetura em 3 camadas, leitura eficiente com *Long Polling* (20s) e escrita NoSQL rápida no DynamoDB. |
-| **Domínio 4: Custo Otimizado** *(Peso Oficial: 20%)* | **10%** | Uso de DynamoDB On-Demand (sem custo fixo ocioso) e redução de chamadas vazias de API na fila. |
+```text
+├── README.md
+├── dia-01/ dia-02/ dia-03/   # uma página por etapa
+├── docs/                     # assessment, rede, ADRs, scorecard, frameworks, gestão
+├── diagrams/                 # Mermaid (.mmd) e guia de boas práticas
+├── evidence/                 # errors/ e tests/
+├── terraform/                # reservado (não implementado)
+├── scripts/                  # scorecard.py e criar-issues.sh
+└── .github/                  # templates de issue/PR e workflow de qualidade
+```
 
----
+Como o projeto é gerido (Issues, Projects, Actions): [docs/06](docs/06-gestao-no-github.md).
 
-## 🚀 Resumo de Boas Práticas e O que Deve Ser Melhorado (Gatilhos para o Dia 02)
+## Créditos
 
-* **Boas Práticas Conquistadas:** Isolamento de rede, ausência de credenciais AWS no código, acoplamento fraco via fila e banco gerenciado.
-* **Pontos de Melhoria (Débitos Técnicos para o Dia 02):**
-  1. **Dados Sensíveis no Script:** A URL da fila SQS e o nome da tabela DynamoDB estão fixos (*hardcoded*) dentro dos scripts Python.
-  2. **Manutenção Manual:** Qualquer mudança exige recriar ou editar manualmente cada instância EC2.
-  3. **Sem Recuperação Automática:** Se uma instância EC2 cair por falha ou pico de acesso, ela não volta sozinha (falta de Auto Scaling).
-
-👉 **[Avançar para o Dia 02: Solucionando Segurança e Escalabilidade com Parameter Store e Auto Scaling ➡️](../dia-02/README.md)**
+Laboratório: **Escola da Nuvem**, instrutor **Ednilson Cipolla**.

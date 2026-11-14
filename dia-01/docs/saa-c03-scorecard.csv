@@ -1,0 +1,29 @@
+dominio,item,dia,status
+1-Seguranca,Instancias em sub-redes privadas sem IP publico,1,registrado
+1-Seguranca,Security Group das EC2 encadeado ao SG do ALB,1,registrado
+1-Seguranca,Instance Profile (IAM Role) sem Access Keys no codigo,1,registrado
+1-Seguranca,Configuracao fora do codigo (Parameter Store),2,pendente
+1-Seguranca,Acesso remoto sem SSH aberto (Session Manager),2,pendente
+1-Seguranca,ALB acessivel somente via CloudFront,3,pendente
+1-Seguranca,Menor privilegio no IAM (politicas restritas por recurso),0,lacuna
+1-Seguranca,HTTPS em transito (ACM) ponta a ponta,0,lacuna
+2-Resiliencia,Frontend e backend em 2 AZs,1,registrado
+2-Resiliencia,Desacoplamento com SQS,1,registrado
+2-Resiliencia,Health checks no Target Group,1,ok
+2-Resiliencia,Auto Scaling substitui instancia com falha,2,pendente
+2-Resiliencia,DLQ para mensagens com erro,2,pendente
+2-Resiliencia,Falha provocada e comportamento observado (Game Day),3,pendente
+2-Resiliencia,Minimo de 2 instancias por camada em regime normal (sem ponto unico de falha),0,lacuna
+2-Resiliencia,Backup/PITR do DynamoDB,0,lacuna
+3-Performance,Long polling no consumidor da fila,1,registrado
+3-Performance,DynamoDB sob demanda (confirmar no console),1,pendente
+3-Performance,Auto Scaling por demanda,2,pendente
+3-Performance,CloudFront na borda,2,pendente
+3-Performance,Escala do backend por backlog por instancia,3,pendente
+3-Performance,Teste de carga com metricas medidas,0,lacuna
+4-Custo,Instancias de pequeno porte dimensionadas ao laboratorio,1,registrado
+4-Custo,Elasticidade (scale-in) evita capacidade ociosa,2,pendente
+4-Custo,Cost Anomaly Detection,3,pendente
+4-Custo,Estimativa de custo documentada,0,lacuna
+4-Custo,Teardown executado apos ordem do professor,0,lacuna
+4-Custo,Avaliacao NAT Gateway vs VPC endpoints,0,lacuna

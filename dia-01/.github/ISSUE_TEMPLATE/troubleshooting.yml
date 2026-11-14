@@ -1,0 +1,40 @@
+name: Troubleshooting (erro real e como foi resolvido)
+description: Registro de um problema enfrentado durante o laboratório
+title: "[Erro] "
+labels: ["troubleshooting"]
+body:
+  - type: dropdown
+    id: dia
+    attributes:
+      label: Dia
+      options: ["Dia 1", "Dia 2", "Dia 3"]
+    validations:
+      required: true
+  - type: textarea
+    id: sintoma
+    attributes:
+      label: Sintoma e mensagem de erro
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostico
+    attributes:
+      label: Como diagnostiquei
+      description: Logs, console, Run Command, métricas que usei
+  - type: textarea
+    id: causa
+    attributes:
+      label: Causa raiz
+  - type: textarea
+    id: correcao
+    attributes:
+      label: Correção aplicada
+  - type: input
+    id: evidencia
+    attributes:
+      label: Caminho da evidência
+      placeholder: evidence/errors/dia1-target-unhealthy.md
+  - type: textarea
+    id: licao
+    attributes:
+      label: Lição aprendida

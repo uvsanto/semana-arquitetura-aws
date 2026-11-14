@@ -1,0 +1,39 @@
+flowchart LR
+  U["Usuários"] --> CF["Amazon CloudFront"]
+  CF -->|"único acesso permitido ao ALB"| ALB
+  subgraph REG["Região us-east-2"]
+    subgraph VPC["VPC projeto-vpc - 10.0.0.0/16"]
+      subgraph PUB["Sub-redes públicas"]
+        ALB["Application Load Balancer"]
+      end
+      NAT["NAT Gateway regional"]
+      subgraph ASGF["ASG frontend - sub-redes privadas"]
+        FE["EC2 Frontend"]
+      end
+      subgraph ASGB["ASG backend - sub-redes privadas"]
+        BE["EC2 Backend"]
+      end
+    end
+    SQS[["Amazon SQS"]]
+    DLQ[["SQS DLQ"]]
+    DDB[("Amazon DynamoDB")]
+    SSM["SSM Parameter Store"]
+    CW["CloudWatch - dashboard e alarmes"]
+    SNS["Amazon SNS"]
+    CAD["Cost Anomaly Detection"]
+  end
+  TEC["Time técnico - e-mail"]
+  ALB --> FE
+  FE --> SQS
+  SQS --> BE
+  SQS -.-> DLQ
+  BE --> DDB
+  FE -.-> SSM
+  BE -.-> SSM
+  SQS -.->|"backlog por instância"| ASGB
+  ALB -.->|"métricas"| CW
+  SQS -.->|"métricas"| CW
+  DLQ -.->|"métricas"| CW
+  CW -->|"alarme"| SNS
+  SNS --> TEC
+  CAD -->|"alerta de custo"| TEC

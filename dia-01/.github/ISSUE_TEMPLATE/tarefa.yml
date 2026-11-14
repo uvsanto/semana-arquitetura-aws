@@ -1,0 +1,24 @@
+name: Tarefa
+description: Entregável do projeto (rastreável a commits e PRs)
+title: "[Tarefa] "
+labels: ["tarefa"]
+body:
+  - type: dropdown
+    id: dia
+    attributes:
+      label: Dia / etapa
+      options: ["Dia 1", "Dia 2", "Dia 3", "Documentação", "Entrega"]
+    validations:
+      required: true
+  - type: textarea
+    id: objetivo
+    attributes:
+      label: Objetivo
+    validations:
+      required: true
+  - type: textarea
+    id: criterios
+    attributes:
+      label: Critérios de aceite
+      description: Como saberei que terminou? Qual evidência comprova?
+      placeholder: "- [ ] Item\n- [ ] Evidência salva em evidence/"

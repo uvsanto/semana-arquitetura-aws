@@ -1,0 +1,37 @@
+flowchart LR
+  U["Usuários"] -->|"HTTPS"| CF["Amazon CloudFront"]
+  CF -->|"HTTP"| ALB
+  subgraph REG["Região us-east-2"]
+    subgraph VPC["VPC projeto-vpc - 10.0.0.0/16"]
+      subgraph PUB["Sub-redes públicas"]
+        ALB["Application Load Balancer"]
+      end
+      NAT["NAT Gateway regional"]
+      subgraph WEB["Sub-redes privadas: frontend"]
+        subgraph ASGF["Auto Scaling Group frontend"]
+          FE["EC2 Frontend - Launch Template"]
+        end
+      end
+      subgraph APP["Sub-redes privadas: backend"]
+        subgraph ASGB["Auto Scaling Group backend"]
+          BE["EC2 Backend - Launch Template"]
+        end
+      end
+    end
+    SQS[["Amazon SQS"]]
+    DLQ[["SQS DLQ"]]
+    DDB[("Amazon DynamoDB")]
+    SSM["SSM Parameter Store"]
+    SM["SSM Session Manager"]
+  end
+  ALB --> FE
+  FE -->|"SendMessage"| SQS
+  SQS -->|"long polling"| BE
+  SQS -.->|"falhas repetidas"| DLQ
+  BE -->|"PutItem"| DDB
+  FE -.->|"lê configuração"| SSM
+  BE -.->|"lê configuração"| SSM
+  SM -.->|"acesso sem SSH"| FE
+  SM -.->|"acesso sem SSH"| BE
+  WEB -.->|"saída"| NAT
+  APP -.->|"saída"| NAT

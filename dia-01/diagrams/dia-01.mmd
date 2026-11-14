@@ -1,0 +1,30 @@
+flowchart LR
+  U["Usuários"] -->|"HTTP 80"| ALB
+  subgraph REG["Região us-east-2"]
+    subgraph VPC["VPC projeto-vpc - 10.0.0.0/16"]
+      subgraph PUB["Sub-redes públicas - AZ A e AZ B"]
+        ALB["Application Load Balancer"]
+      end
+      NAT["NAT Gateway regional"]
+      subgraph WEB["Sub-redes privadas: frontend"]
+        FE1["EC2 Frontend 1 - us-east-2b"]
+        FE2["EC2 Frontend 2 - us-east-2a"]
+      end
+      subgraph APP["Sub-redes privadas: backend"]
+        BE1["EC2 Backend 1 - us-east-2a"]
+        BE2["EC2 Backend 2 - us-east-2b"]
+      end
+    end
+    SQS[["Amazon SQS - fila padrão"]]
+    DDB[("Amazon DynamoDB")]
+  end
+  ALB --> FE1
+  ALB --> FE2
+  FE1 -->|"SendMessage"| SQS
+  FE2 -->|"SendMessage"| SQS
+  SQS -->|"long polling 20 s"| BE1
+  SQS -->|"long polling 20 s"| BE2
+  BE1 -->|"PutItem"| DDB
+  BE2 -->|"PutItem"| DDB
+  WEB -.->|"saída"| NAT
+  APP -.->|"saída"| NAT
