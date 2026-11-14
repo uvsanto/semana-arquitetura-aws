@@ -41,7 +41,7 @@ A **[Amazon Web Services (AWS)](https://aws.amazon.com/pt/)** é a plataforma de
 
 ---
 
-## 💡 O Propósito do Desafio (Explicado de Forma Simples para Todos)
+## 💡 O Propósito do Desafio 
 
 Imagine uma bilheteria de um grande show ou um site de vendas na Black Friday. Em um sistema comum, quando **10 mil pessoas clicam em "Enviar" ao mesmo tempo**, o servidor do site tenta receber o cliente e gravar no banco de dados no mesmo instante. O resultado? O banco de dados sobrecarrega, a tela trava e o sistema inteiro cai.
 
@@ -236,7 +236,3 @@ Como o esforço de arquitetura se distribuiu entre os 4 domínios da **[AWS SAA-
 | **10** | **Processamento** | Leitura via *Long Polling* (20s) e exclusão automática da mensagem (`DeleteMessage`). | ✅ Comprovado |
 | **11** | **Persistência Final** | Registros encontrados no DynamoDB com carimbos `received_at` e `processed_at`. | ✅ Comprovado |
 
----
-
-## 🔒 Política de Manutenção do Ambiente (Ordem de Avaliação)
-> **Aviso Importante de Governança:** Em estrito cumprimento às orientações do **Prof. Ednilson Cipolla**, **nenhum recurso dos Dias 01, 02 e 03 foi deletado ao final de cada etapa**. Toda a infraestrutura permanece ativa e monitorada para permitir a auditoria técnica, coleta histórica de métricas no Amazon CloudWatch e validação final do projeto.
