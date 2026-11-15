@@ -104,6 +104,7 @@ O projeto foi conduzido seguindo as 6 etapas clássicas de transformação em nu
 
 ## 📐 Topologia Macro Geral da Arquitetura (Mermaid.js)
 
+```mermaid
 flowchart TB
     subgraph Edge ["🌐 Borda Externa & Entrega"]
         User(["👤 Clientes / Usuários Web"])
