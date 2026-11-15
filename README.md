@@ -104,44 +104,45 @@ O projeto foi conduzido seguindo as 6 etapas clássicas de transformação em nu
 
 ## 📐 Topologia Macro Geral da Arquitetura (Mermaid.js)
 
+---
 ```mermaid
 flowchart TB
     subgraph Edge ["🌐 Borda Externa & Entrega"]
         User(["👤 Clientes / Usuários Web"])
-        CF["⚡ Amazon CloudFront (Entrega Segura / Edge)"]
+        CF["⚡ Amazon CloudFront<br/>(Entrega Segura / Edge)"]
     end
 
-    subgraph AWS ["☁️ AWS Cloud — Região us-east-2 (Ohio) | VPC: projeto-vpc (10.0.0.0/16)"]
+    subgraph AWS ["☁️ AWS Cloud — Região us-east-2 (Ohio)<br/>VPC: projeto-vpc (10.0.0.0/16)"]
         IGW["🌐 Internet Gateway"]
 
         subgraph Public ["Sub-redes Públicas (us-east-2a & us-east-2b)"]
-            ALB["⚖️ Application Load Balancer\n(projeto-alb-vagner-toma)"]
+            ALB["⚖️ Application Load Balancer<br/>(projeto-alb-vagner-toma)"]
             NAT["🚪 NAT Gateways (Multi-AZ)"]
         end
 
         subgraph WebTier ["1ª Camada Privada: Apresentação (Frontend Web)"]
-            ASG_FE["💻 EC2 Auto Scaling Group — Frontend\n(Python Flask | Target Group: grupo-frontend-vagner-tomaz)"]
+            ASG_FE["💻 EC2 Auto Scaling Group — Frontend<br/>(Python Flask | Target Group: grupo-frontend-vagner-tomaz)"]
         end
 
         subgraph QueueTier ["Camada de Desacoplamento Assíncrono (Buffer)"]
-            SQS[("📬 Amazon SQS\n(fila-registros-vagner-tomaz)")]
-            DLQ[("🛑 Dead Letter Queue (DLQ)\nIsolamento de Falhas")]
+            SQS[("📬 Amazon SQS<br/>(fila-registros-vagner-tomaz)")]
+            DLQ[("🛑 Dead Letter Queue (DLQ)<br/>Isolamento de Falhas")]
             SQS -.->|Excesso de Tentativas| DLQ
         end
 
         subgraph AppTier ["2ª Camada Privada: Processamento (Backend Workers)"]
-            ASG_BE["⚙️ EC2 Auto Scaling Group — Backend\n(Python systemd Worker | Long Polling 20s)"]
+            ASG_BE["⚙️ EC2 Auto Scaling Group — Backend<br/>(Python systemd Worker | Long Polling 20s)"]
         end
 
         subgraph DataTier ["3ª Camada: Persistência NoSQL Escalável"]
-            DDB[("🗄️ Amazon DynamoDB\n(tabela-registros-vagner-tomaz)\nPartition Key: requestId | On-Demand")]
+            DDB[("🗄️ Amazon DynamoDB<br/>(tabela-registros-vagner-tomaz)<br/>Partition Key: requestId | On-Demand")]
         end
 
         subgraph SecGov ["🛡️ Segurança, Governança, Observabilidade & FinOps"]
-            IAM["🔑 AWS IAM Role\n(ec2-role-vagner-tomaz)"]
-            SSM["🔐 AWS Systems Manager\n(Parameter Store & Session Manager Zero-SSH)"]
-            CW["📈 Amazon CloudWatch\n(Dashboards, Logs & Backlog Alarms)"]
-            SNS["📣 Amazon SNS & Cost Anomaly\n(Notificações e Controle FinOps)"]
+            IAM["🔑 AWS IAM Role<br/>(ec2-role-vagner-tomaz)"]
+            SSM["🔐 AWS Systems Manager<br/>(Parameter Store & Session Manager Zero-SSH)"]
+            CW["📈 Amazon CloudWatch<br/>(Dashboards, Logs & Backlog Alarms)"]
+            SNS["📣 Amazon SNS & Cost Anomaly<br/>(Notificações e Controle FinOps)"]
         end
     end
 
