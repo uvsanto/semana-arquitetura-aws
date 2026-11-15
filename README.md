@@ -55,13 +55,13 @@ Infraestrutura estática baseada em sub-redes públicas e privadas em duas Zonas
 flowchart LR
     User([Cliente / Internet]) -->|HTTP :80| ALB[Application Load Balancer]
     
-    subgraph VPC Multi-AZ (us-east-2)
-        subgraph Sub-redes Públicas
+    subgraph VPC [VPC Multi-AZ us-east-2]
+        subgraph Pub [Sub-redes Públicas]
             ALB -->|Proxy Reverso| FE1[Instância EC2 - Frontend Flask]
             ALB --> FE2[Instância EC2 - Frontend Flask]
         end
 
-        subgraph Sub-redes Privadas (Isolated)
+        subgraph Priv [Sub-redes Privadas Isoladas]
             FE1 -->|Enfileira Mensagem| SQS[(Amazon SQS Principal)]
             SQS -.->|DLQ Falhas| DLQ[(SQS Dead Letter Queue)]
             
