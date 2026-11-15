@@ -104,63 +104,8 @@ O projeto foi conduzido seguindo as 6 etapas clássicas de transformação em nu
 
 ## 📐 Topologia Macro Geral da Arquitetura (Mermaid.js)
 
-```mermaid
-flowchart TB
-    subgraph Edge ["🌐 Borda Externa & Entrega"]
-        User(["👤 Clientes / Usuários Web"])
-        CF["⚡ Amazon CloudFront (Entrega Segura / Edge)"]
-    end
+<img width="902" height="2268" alt="image" src="https://github.com/user-attachments/assets/87916cca-59c8-41b7-8ccb-d22c91a3aeed" />
 
-    subgraph AWS ["☁️ AWS Cloud — Região us-east-2 (Ohio) | VPC: projeto-vpc (10.0.0.0/16)"]
-        IGW["🌐 Internet Gateway"]
-
-        subgraph Public ["Sub-redes Públicas (us-east-2a & us-east-2b)"]
-            ALB["⚖️ Application Load Balancer\n(projeto-alb-vagner-toma)"]
-            NAT["🚪 NAT Gateways (Multi-AZ)"]
-        end
-
-        subgraph WebTier ["1ª Camada Privada: Apresentação (Frontend Web)"]
-            ASG_FE["💻 EC2 Auto Scaling Group — Frontend\n(Python Flask | Target Group: grupo-frontend-vagner-tomaz)"]
-        end
-
-        subgraph QueueTier ["Camada de Desacoplamento Assíncrono (Buffer)"]
-            SQS[("📬 Amazon SQS\n(fila-registros-vagner-tomaz)")]
-            DLQ[("🛑 Dead Letter Queue (DLQ)\nIsolamento de Falhas")]
-            SQS -.->|Excesso de Tentativas| DLQ
-        end
-
-        subgraph AppTier ["2ª Camada Privada: Processamento (Backend Workers)"]
-            ASG_BE["⚙️ EC2 Auto Scaling Group — Backend\n(Python systemd Worker | Long Polling 20s)"]
-        end
-
-        subgraph DataTier ["3ª Camada: Persistência NoSQL Escalável"]
-            DDB[("🗄️ Amazon DynamoDB\n(tabela-registros-vagner-tomaz)\nPartition Key: requestId | On-Demand")]
-        end
-
-        subgraph SecGov ["🛡️ Segurança, Governança, Observabilidade & FinOps"]
-            IAM["🔑 AWS IAM Role\n(ec2-role-vagner-tomaz)"]
-            SSM["🔐 AWS Systems Manager\n(Parameter Store & Session Manager Zero-SSH)"]
-            CW["📈 Amazon CloudWatch\n(Dashboards, Logs & Backlog Alarms)"]
-            SNS["📣 Amazon SNS & Cost Anomaly\n(Notificações e Controle FinOps)"]
-        end
-    end
-
-    User -->|HTTP / HTTPS| CF
-    CF --> IGW
-    IGW --> ALB
-    ALB -->|SG Encadeado :80| ASG_FE
-    ASG_FE -->|SendMessage JSON + UUID| SQS
-    SQS -->|ReceiveMessage (20s)| ASG_BE
-    ASG_BE -->|PutItem NoSQL| DDB
-    ASG_FE -.->|GetParameter| SSM
-    ASG_BE -.->|GetParameter| SSM
-    IAM -.->|Credenciais Temporárias| ASG_FE
-    IAM -.->|Credenciais Temporárias| ASG_BE
-    CW -.->|Política de Escala por Fila| ASG_BE
-    CW -->|Dispara Alerta| SNS
-    WebTier -.->|Saída p/ Pacotes| NAT
-    AppTier -.->|Saída p/ APIs| NAT
-```
 
 ---
 
