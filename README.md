@@ -159,8 +159,6 @@ flowchart TB
     CW -->|Dispara Alerta| SNS
     WebTier -.->|Saída p/ Pacotes| NAT
     AppTier -.->|Saída p/ APIs| NAT
-
-
 ---
 
 ## 🤔 Decisão Arquitetural: Por que não utilizar Terraform, CloudFormation ou Kiro no início?
