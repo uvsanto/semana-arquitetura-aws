@@ -17,7 +17,7 @@
 * 📅 **[Dia 01 — Fundação & Desacoplamento](dia-01/README.md)**
 * 📅 **[Dia 02 — Segurança & Escalabilidade](dia-02/README.md)**
 * 📅 **[Dia 03 — Observabilidade & Operação](dia-03/README.md)**
-* 
+  
 ## 👥 Identificação Acadêmica, Mentoria e Ecossistema Tecnológico
 
 | Papel no Projeto | Nome / Instituição | Links Oficiais e Redes |
