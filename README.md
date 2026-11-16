@@ -169,7 +169,7 @@ graph TD
     
     be_1a --> db
     be_1b --> db
-```
+
 ---
 
 ## 📐 Topologia Macro Geral da Arquitetura (Mermaid.js)
