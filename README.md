@@ -58,6 +58,10 @@ Construir uma arquitetura inteligente dividida em **3 camadas independentes** on
 * Sistemas de emissão assíncrona de Notas Fiscais, boletos ou relatórios pesados;
 * Ingestão de eventos de IoT, telemetria e microsserviços financeiros.
 
+ <div align="center">
+  <img src="assets/jornada-arquitetura-aws.png" alt="Jornada de Arquitetura AWS" width="850"/>
+</div>
+
 ---
 
 ## 🔄 Metodologia de Engenharia em 6 Fases (Confronto Teórico vs. Prático)
