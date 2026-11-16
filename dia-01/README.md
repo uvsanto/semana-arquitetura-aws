@@ -1,144 +1,115 @@
-# Semana de Arquitetura AWS: construindo, evoluindo e operando uma aplicação web em 3 camadas
+<div align="center">
+  <h1>🛠️ Dia 01 — Construindo a Base</h1>
+  <h3>Aplicação de 3 Camadas Desacoplada por Fila, Rede Multi-AZ e Balanceamento de Carga</h3>
+  <p>
+    <a href="../README.md">🏠 Página Principal</a> • 
+    <a href="../dia-02/README.md">Avançar para o Dia 02: Evoluindo a Arquitetura ➡️</a>
+  </p>
+</div>
 
-Em três dias de laboratório da **Escola da Nuvem**, parti de uma aplicação web simples e a transformei, passo a passo, em uma arquitetura distribuída em duas zonas de disponibilidade, desacoplada por fila, mais segura e observável. Este repositório documenta o que construí, **por que** cada decisão foi tomada, os erros que enfrentei e as melhorias que eu faria em produção.
+---
 
-**Autor:** Vagner Tomaz dos Santos · Analista de Infraestrutura de TI em transição para Arquitetura Cloud
-**Região:** `us-east-2` (Ohio)
+## 🎯 Descrição Didática do Desafio (O Projeto do Dia 01)
 
-## Transparência: o que é do curso e o que é meu
+No **Dia 01**, estabelecemos a fundação essencial de uma aplicação web de três camadas (*3-Tier*) de alta disponibilidade:
+1. **Infraestrutura de Rede e Borda:** Estruturação de uma VPC Multi-AZ na região `us-east-2`, separando sub-redes públicas e privadas, com Internet Gateway e NAT Gateways para roteamento seguro.
+2. **Distribuição de Carga:** Implantação de um **[Application Load Balancer (ALB)](https://aws.amazon.com/pt/elasticloadbalancing/classic-load-balancer/)** voltado para a internet, associado a *Target Groups* para rotear requisições HTTP na porta 80.
+3. **Desacoplamento Assíncrono e Persistência:** Conexão do Frontend (Flask) com o **[Amazon SQS](https://aws.amazon.com/pt/sqs/)** para fila de mensagens e persistência assíncrona dos registros no **[Amazon DynamoDB](https://aws.amazon.com/pt/dynamodb/)**.
 
-O roteiro, os scripts e a conta do laboratório são da **Escola da Nuvem** (instrutor: Ednilson Cipolla) e não são reproduzidos aqui. Este repositório contém meu trabalho sobre o laboratório: diagramas, decisões (ADRs), evidências, análise crítica e melhorias.
-A rede (VPC, sub-redes, Internet Gateway e NAT Gateway) já existia como pré-requisito ([baseline](docs/01-assessment.md)).
+## 🗺️ Visão geral do ambiente (baseline)
+O projeto parte de uma infraestrutura de rede pré-existente como *baseline* (VPC, blocos CIDR, sub-redes e gateways), sobre a qual construímos o ecossistema de computação, balanceamento e mensageria em duas Zonas de Disponibilidade (`us-east-2a` e `us-east-2b`).
 
-## A jornada em 3 etapas
+## ⚖️ Decisões de arquitetura (ADRs)
+- **Application Load Balancer (ALB) vs. NLB:** Escolha do ALB por operar na Camada 7 (HTTP/HTTPS), permitindo o roteamento inteligente de requisições web para instâncias de frontend.
+- **SQS Principal vs. Sincronismo Direto:** Adoção de mensageria assíncrona para desacoplar a camada web do backend de processamento, garantindo resiliência contra picos de tráfego.
 
-| Etapa | O que mudou | Serviços principais | Página |
-|---|---|---|---|
-| **Dia 1: Construindo a base** | Aplicação de 3 camadas desacoplada por fila | EC2, ALB, SQS, DynamoDB, IAM | [dia-01](dia-01/README.md) |
-| **Dia 2: Evoluindo a arquitetura** | Configuração fora do código, recuperação automática, acesso sem SSH | Parameter Store, ASG, Session Manager, CloudFront, DLQ | [dia-02](dia-02/README.md) |
-| **Dia 3: Operando e testando** | Observabilidade, falhas provocadas, ALB protegido, escala por backlog | CloudWatch, SNS, Cost Anomaly Detection | [dia-03](dia-03/README.md) |
+---
 
-## Visão geral do ambiente (baseline)
-
-| Item | Valor |
-|---|---|
-| Região / VPC | `us-east-2` · `projeto-vpc` (`10.0.0.0/16`) |
-| Sub-redes | 2 públicas e 4 privadas, em 2 AZs |
-| Fornecido pelo curso | VPC, sub-redes, Internet Gateway, NAT Gateway, conta restrita |
-| Construído por mim | Tudo acima da rede: dados, fila, computação, balanceamento, segurança, operação |
-
-## Arquitetura (estado final)
+## 📐 Topologia da Arquitetura — Cenário Dia 01 (Mermaid.js)
 
 ```mermaid
 flowchart LR
-  U["Usuários"] --> CF["Amazon CloudFront"]
-  CF -->|"único acesso permitido ao ALB"| ALB
+  U["Usuários"] -->|"HTTP 80"| ALB
   subgraph REG["Região us-east-2"]
     subgraph VPC["VPC projeto-vpc - 10.0.0.0/16"]
-      subgraph PUB["Sub-redes públicas"]
+      subgraph PUB["Sub-redes públicas - AZ A e AZ B"]
         ALB["Application Load Balancer"]
       end
       NAT["NAT Gateway regional"]
-      subgraph ASGF["ASG frontend - sub-redes privadas"]
-        FE["EC2 Frontend"]
+      subgraph WEB["Sub-redes privadas: frontend"]
+        FE1["EC2 Frontend 1 - us-east-2b"]
+        FE2["EC2 Frontend 2 - us-east-2a"]
       end
-      subgraph ASGB["ASG backend - sub-redes privadas"]
-        BE["EC2 Backend"]
+      subgraph APP["Sub-redes privadas: backend"]
+        BE1["EC2 Backend 1 - us-east-2a"]
+        BE2["EC2 Backend 2 - us-east-2b"]
       end
     end
-    SQS[["Amazon SQS"]]
-    DLQ[["SQS DLQ"]]
+    SQS[["Amazon SQS - fila padrão"]]
     DDB[("Amazon DynamoDB")]
-    SSM["SSM Parameter Store"]
-    CW["CloudWatch - dashboard e alarmes"]
-    SNS["Amazon SNS"]
-    CAD["Cost Anomaly Detection"]
   end
-  TEC["Time técnico - e-mail"]
-  ALB --> FE
-  FE --> SQS
-  SQS --> BE
-  SQS -.-> DLQ
-  BE --> DDB
-  FE -.-> SSM
-  BE -.-> SSM
-  SQS -.->|"backlog por instância"| ASGB
-  ALB -.->|"métricas"| CW
-  SQS -.->|"métricas"| CW
-  DLQ -.->|"métricas"| CW
-  CW -->|"alarme"| SNS
-  SNS --> TEC
-  CAD -->|"alerta de custo"| TEC
+  ALB --> FE1
+  ALB --> FE2
+  FE1 -->|"SendMessage"| SQS
+  FE2 -->|"SendMessage"| SQS
+  SQS -->|"long polling 20 s"| BE1
+  SQS -->|"long polling 20 s"| BE2
+  BE1 -->|"PutItem"| DDB
+  BE2 -->|"PutItem"| DDB
+  FE1 -.->|"saída"| NAT
+  FE2 -.->|"saída"| NAT
+  BE1 -.->|"saída"| NAT
+  BE2 -.->|"saída"| NAT
 ```
+<div align="center">
+  <img src="../assets/parte-02-dia01.jpeg" alt="Construindo a Solução — Dia 01" width="750"/>
+</div>
+## 🛠️ Tecnologias AWS Utilizadas nessa Etapa
 
-Os diagramas de cada etapa estão nas páginas dos dias. Boas práticas para os desenhos visuais: [diagrams/README.md](diagrams/README.md).
+| Serviço / Recurso AWS | Função Construída no Dia 01 | Definição no Glossário |
+| :--- | :--- | :--- |
+| **Amazon VPC & Sub-redes** | Isolamento de tráfego em sub-redes públicas e privadas distribuídas em Multi-AZ. | Rede virtual isolada logicamente na nuvem AWS para provisionar recursos. |
+| **Internet & NAT Gateway** | Permite o tráfego de entrada da internet e saída segura para atualizações em instâncias privadas. | Gateways de roteamento para comunicação com a internet pública. |
+| **Application Load Balancer** | Distribui o tráfego HTTP recebido da web para as instâncias EC2 de frontend. | Balanceador de carga de camada 7 para aplicações web. |
+| **Amazon SQS** | Fila de mensagens que recebe os payloads enviados pelo frontend de forma desacoplada. | Serviço de mensageria gerenciada para desacoplar sistemas distribuídos. |
+| **Amazon DynamoDB** | Banco de dados NoSQL de chave-valor para persistir os registros enviados. | Banco NoSQL serverless de alta performance e baixa latência. |
 
-## Componentes em resumo
+---
 
-| Camada | Componente | Detalhe |
-|---|---|---|
-| Borda | CloudFront + ALB | Entrada única; o ALB só aceita o CloudFront (Dia 3) |
-| Apresentação | EC2 Flask em Auto Scaling Group | Envia a requisição para a fila |
-| Desacoplamento | SQS + DLQ | Absorve picos; isola mensagens com erro |
-| Processamento | EC2 workers em Auto Scaling Group | Lê a fila, grava e apaga; escala por backlog |
-| Persistência | DynamoDB | Chave `requestId` |
-| Configuração e acesso | Parameter Store, Session Manager | Sem configuração no código e sem SSH |
-| Operação | CloudWatch, SNS, Cost Anomaly Detection | Painel, alertas e custo |
+## 🩺 Evidências de Testes e Troubleshooting Técnico — Dia 01
 
-Explicação camada a camada, glossário, checklist e melhorias: nas páginas de cada dia.
+> **Nota importante:** Os prints de tela específicos da construção inicial do Dia 01 não foram salvos, mas todo o checklist de validação e a execução estrutural encontram-se rigorosamente registrados de forma textual (📝):
 
-## Decisões de arquitetura (ADRs)
+| Ação de Infraestrutura Executada | Comportamento Esperado | Status e Validação Real (Registro Textual) |
+| :--- | :--- | :--- |
+| **1. Validação de Sub-redes e Roteamento Multi-AZ** | As instâncias nas sub-redes privadas devem alcançar o NAT Gateway sem exposição pública. | Validado via tabelas de rotas e associações de sub-redes na VPC. |
+| **2. Teste de Acesso via DNS do Load Balancer** | O ALB deve responder às requisições HTTP na porta 80 e encaminhar para o Target Group. | Validado com sucesso após ajustes de regras de tráfego de rede. |
+| **3. Envio e Persistência de Mensagens (SQS ➔ DynamoDB)** | O envio de dados pelo formulário web deve gerar um `requestId` e persistir no DynamoDB. | Validado ponta a ponta com o fluxo completo de mensagens processadas. |
 
-| ADR | Decisão |
-|---|---|
-| [0001](docs/03-adr/0001-sqs-entre-frontend-e-backend.md) | SQS entre frontend e backend |
-| [0002](docs/03-adr/0002-dynamodb-para-persistencia.md) | DynamoDB para persistência |
-| [0003](docs/03-adr/0003-parameter-store-para-configuracao.md) | Parameter Store para configuração |
-| [0004](docs/03-adr/0004-escala-do-backend-por-backlog.md) | Escala do backend por backlog |
-| [0005](docs/03-adr/0005-alb-acessivel-somente-via-cloudfront.md) | ALB acessível somente via CloudFront |
-| [0006](docs/03-adr/0006-por-que-nao-usar-iac-neste-laboratorio.md) | Por que não usei infraestrutura como código |
+---
 
-## Aderência ao exame AWS SAA-C03 e a frameworks
+## 🎯 Alinhamento e Cobertura AWS SAA-C03 — Dia 01
 
-- **Pontuação por domínio** (indicador didático próprio, com pesos oficiais 30/26/24/20): [docs/04](docs/04-saa-c03-scorecard.md).
+Distribuição do peso técnico abordado especificamente na fundação do **Dia 01** conforme o Guia do Exame SAA-C03:
 
-| Cenário | Potencial | Declarado | Comprovado |
-|---|---|---|---|
-| Dia 1 | 32,3% | 28,3% | 3,2% |
-| Dias 1+2 | 57,7% | 28,3% | 3,2% |
-| Dias 1+2+3 | 72,0% | 28,3% | 3,2% |
+| Domínio Oficial SAA-C03 | Cobertura no Dia 01 | Práticas e Melhores Práticas Aplicadas na Etapa |
+| :--- | :---: | :--- |
+| **Domínio 1: Arquiteturas Resilientes** *(Peso Oficial: 26%)* | **40%** | Desenho de VPC Multi-AZ com redundância de zonas de disponibilidade e balanceamento de carga elástico com ALB. |
+| **Domínio 2: Alto Desempenho** *(Peso Oficial: 24%)* | **35%** | Desacoplamento de microsserviços via filas SQS e armazenamento de alta escala com DynamoDB. |
+| **Domínio 3: Arquiteturas Seguras** *(Peso Oficial: 30%)* | **15%** | Isolamento de camadas de computação em sub-redes privadas protegidas da internet direta. |
+| **Domínio 4: Custo Otimizado** *(Peso Oficial: 20%)* | **10%** | Utilização dimensionada de recursos essenciais para iniciar o laboratório de forma enxuta. |
 
-*"Potencial" é o que o roteiro prevê; "Comprovado" só conta itens com evidência. Atualizo à medida que anexo as provas.*
+---
 
-- **Well-Architected, LGPD e CAF:** [docs/05](docs/05-frameworks.md). Não declaro conformidade com LGPD nem adoção do CAF; explico por quê.
+## 🚀 Resumo de Boas Práticas e O que Deve Ser Melhorado (Gatilhos para o Dia 02)
 
-## Evidências e troubleshooting
+- **Boas Práticas Conquistadas:** Separação clara entre camadas públicas e privadas, uso de balanceamento de carga Multi-AZ e mensageria assíncrona.
+- **O que seria diferente utilizando tecnologias de IaC (Terraform, CloudFormation ou Kiro) neste Cenário:**
+  - A construção manual via console e CLI no Dia 01 é excelente para o aprendizado profundo dos fundamentos de rede. Contudo, se tivéssemos utilizado Terraform ou AWS CloudFormation, a criação da VPC, tabelas de rotas, gateways, ALB e filas estaria totalmente declarada em código, permitindo provisionar toda a infraestrutura base de rede em poucos segundos com um único comando `terraform apply`.
+- **Pontos de Melhoria (Gatilhos para o Dia 02):**
+  1. **Credenciais e Parâmetros Chumbados no Código:** No Dia 01, URLs de filas e nomes de tabelas ainda precisavam constar diretamente nos scripts; precisamos centralizar isso no Parameter Store.
+  2. **Ausência de Imutabilidade e Auto-Healing:** As instâncias EC2 iniciais dependem de configuração estática; precisamos introduzir Launch Templates e Auto Scaling Groups.
 
-Política, legenda e modelo de registro de erros em [evidence/](evidence/README.md). Os prints do Dia 1 não foram salvos; o checklist daquele dia é registro textual (📝) e está identificado como tal.
+---
 
-## Estado do projeto
-
-- [x] Estrutura, ADRs e documentação-base
-- [ ] Dia 1: checklist registrado (📝)
-- [ ] Dia 2: evidências
-- [ ] Dia 3: Game Day e evidências
-- [ ] Teardown: **somente após a ordem do professor**
-
-## Estrutura do repositório
-
-```text
-├── README.md
-├── dia-01/ dia-02/ dia-03/   # uma página por etapa
-├── docs/                     # assessment, rede, ADRs, scorecard, frameworks, gestão
-├── diagrams/                 # Mermaid (.mmd) e guia de boas práticas
-├── evidence/                 # errors/ e tests/
-├── terraform/                # reservado (não implementado)
-├── scripts/                  # scorecard.py e criar-issues.sh
-└── .github/                  # templates de issue/PR e workflow de qualidade
-```
-
-Como o projeto é gerido (Issues, Projects, Actions): [docs/06](docs/06-gestao-no-github.md).
-
-## Créditos
-
-Laboratório: **Escola da Nuvem**, instrutor **Ednilson Cipolla**.
+👉 **[Avançar para o Dia 02: Evoluindo a Arquitetura (Segurança e Auto Scaling) ➡️](../dia-02/README.md)**

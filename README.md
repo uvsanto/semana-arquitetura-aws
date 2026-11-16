@@ -26,9 +26,19 @@ A **[Escola da Nuvem](https://escoladanuvem.org/)** é uma organização sem fin
 
 ### 🛠️ Ferramentas e Tecnologias Utilizadas no Desenvolvimento
 * **Ambiente de Nuvem:** [Amazon Web Services (AWS)](https://aws.amazon.com/pt/) (Região `us-east-2` - Ohio).
-* **IDE e Edição Técnica:** [Visual Studio Code (VS Code)](https://code.visualstudio.com/) para estruturação de código Python, scripts *User Data* e documentação Markdown.
-* **Controle de Versão, Gestão Ágil e CI/CD:** [GitHub](https://github.com/uvsanto/semana-arquitetura-aws), [GitHub Projects (Kanban)](https://github.com/users/uvsanto/projects/2) e [GitHub Actions](https://github.com/features/actions).
-* **Inteligência Artificial Aplicada (Co-Engenharia e Auditoria):** **Google Gemini** (atuando como IA Mestre na estruturação arquitetural, revisão pedagógica e diagramação em código) e **GitHub Copilot / GPT** (atuando como IA auxiliar e validadora de governança e checklists).
+* **Ambiente de Desenvolvimento (IDE):** Visual Studio Code (VS Code)
+* **Versionamento e Controle de Código:** Git & GitHub Desktop
+* **Inteligência Artificial Aplicada (Co-Engenharia e Auditoria):**
+* **Google Gemini:** Atuando como IA Mestre na validação, estruturação arquitetural, revisão pedagógica e diagramação em código (Mermaid.js).
+* **Claude:** Atuando como IA auxiliar e validadora de governança, conformidade e checklists técnicos.
+---
+
+## ☁️ O que é a Amazon Web Services (AWS) e sua Liderança Global
+
+A **[Amazon Web Services (AWS)](https://aws.amazon.com/pt/)** é a plataforma de computação em nuvem mais abrangente e amplamente adotada do mundo, oferecendo mais de 200 serviços completos de data centers globalmente.
+
+* **Liderança no Gartner (14+ Anos Consecutivos):** De acordo com o *Gartner Magic Quadrant for Strategic Cloud Platform Services (CIPS)*, a AWS ocupa de forma ininterrupta o quadrante de **Líder Global**, seguida por Microsoft Azure e Google Cloud Platform (GCP).
+* **Dominância Global e no Brasil:** Com cerca de **31% a 33% de participação de mercado mundial (Market Share)** e presença consolidada no Brasil (Região São Paulo `sa-east-1` e zonas de borda), a AWS é a escolha primária para missões críticas no setor financeiro, varejo, governo e startups devido à sua maturidade em segurança, baixa latência e amplitude de serviços gerenciados.
 
 ---
 
@@ -48,15 +58,11 @@ Construir uma arquitetura inteligente dividida em **3 camadas independentes** on
 * Sistemas de emissão assíncrona de Notas Fiscais, boletos ou relatórios pesados;
 * Ingestão de eventos de IoT, telemetria e microsserviços financeiros.
 
+ <div align="center">
+  <img src="assets/jornada-arquitetura-aws.png" alt="Jornada de Arquitetura AWS" width="850"/>
+</div>
+
 ---
-
-## ☁️ O que é a Amazon Web Services (AWS) e sua Liderança Global
-
-A **[Amazon Web Services (AWS)](https://aws.amazon.com/pt/)** é a plataforma de computação em nuvem mais abrangente e amplamente adotada do mundo, oferecendo mais de 200 serviços completos de data centers globalmente.
-
-* **Liderança no Gartner (14+ Anos Consecutivos):** De acordo com o *Gartner Magic Quadrant for Strategic Cloud Platform Services (CIPS)*, a AWS ocupa de forma ininterrupta o quadrante de **Líder Global**, seguida por Microsoft Azure e Google Cloud Platform (GCP).
-* **Dominância Global e no Brasil:** Com cerca de **31% a 33% de participação de mercado mundial (Market Share)** e presença consolidada no Brasil (Região São Paulo `sa-east-1` e zonas de borda), a AWS é a escolha primária para missões críticas no setor financeiro, varejo, governo e startups devido à sua maturidade em segurança, baixa latência e amplitude de serviços gerenciados.
-
 
 ## 🔄 Metodologia de Engenharia em 6 Fases (Confronto Teórico vs. Prático)
 
@@ -104,7 +110,6 @@ O projeto foi conduzido seguindo as 6 etapas clássicas de transformação em nu
 
 ## 📐 Topologia Macro Geral da Arquitetura (Mermaid.js)
 
----
 ```mermaid
 flowchart TB
     subgraph Edge ["🌐 Borda Externa & Entrega"]
@@ -127,7 +132,7 @@ flowchart TB
         subgraph QueueTier ["Camada de Desacoplamento Assíncrono (Buffer)"]
             SQS[("📬 Amazon SQS<br/>(fila-registros-vagner-tomaz)")]
             DLQ[("🛑 Dead Letter Queue (DLQ)<br/>Isolamento de Falhas")]
-            SQS -.->|Excesso de Tentativas| DLQ
+            SQS -.->|"Excesso de Tentativas"| DLQ
         end
 
         subgraph AppTier ["2ª Camada Privada: Processamento (Backend Workers)"]
@@ -146,21 +151,23 @@ flowchart TB
         end
     end
 
-    User -->|HTTP / HTTPS| CF
+    User -->|"HTTP / HTTPS"| CF
     CF --> IGW
     IGW --> ALB
-    ALB -->|SG Encadeado :80| ASG_FE
-    ASG_FE -->|SendMessage JSON + UUID| SQS
-    SQS -->|ReceiveMessage (20s)| ASG_BE
-    ASG_BE -->|PutItem NoSQL| DDB
-    ASG_FE -.->|GetParameter| SSM
-    ASG_BE -.->|GetParameter| SSM
-    IAM -.->|Credenciais Temporárias| ASG_FE
-    IAM -.->|Credenciais Temporárias| ASG_BE
-    CW -.->|Política de Escala por Fila| ASG_BE
-    CW -->|Dispara Alerta| SNS
-    WebTier -.->|Saída p/ Pacotes| NAT
-    AppTier -.->|Saída p/ APIs| NAT
+    ALB -->|"SG Encadeado :80"| ASG_FE
+    ASG_FE -->|"SendMessage JSON + UUID"| SQS
+    SQS -->|"ReceiveMessage (20s)"| ASG_BE
+    ASG_BE -->|"PutItem NoSQL"| DDB
+    ASG_FE -.->|"GetParameter"| SSM
+    ASG_BE -.->|"GetParameter"| SSM
+    IAM -.->|"Credenciais Temporárias"| ASG_FE
+    IAM -.->|"Credenciais Temporárias"| ASG_BE
+    CW -.->|"Política de Escala por Fila"| ASG_BE
+    CW -->|"Dispara Alerta"| SNS
+    WebTier -.->|"Saída p/ Pacotes"| NAT
+    AppTier -.->|"Saída p/ APIs"| NAT
+```
+
 ---
 
 ## 🤔 Decisão Arquitetural: Por que não utilizar Terraform, CloudFormation ou Kiro no início?
