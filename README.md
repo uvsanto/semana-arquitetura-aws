@@ -4,10 +4,7 @@
   <p><i>Projeto prático de engenharia e governança em nuvem: construindo um ecossistema capaz de absorver picos extremos de tráfego, proteger ativos críticos de dados e recuperar-se automaticamente de falhas sem intervenção humana.</i></p>
 
   <p>
-    <a href="https://aws.amazon.com/pt/"><img src="https://img.shields.io/badge/AWS_Cloud-us--east--2_(Ohio)-FF9900?style=for-the-badge&logo=amazonaws&logoColor=white" alt="AWS Region"></a>
-    <a href="https://aws.amazon.com/pt/certification/certified-solutions-architect-associate/"><img src="https://img.shields.io/badge/Alinhado_ao_Exame-AWS_SAA--C03-232F3E?style=for-the-badge&logo=amazon-aws&logoColor=FF9900" alt="SAA-C03"></a>
-    <a href="https://github.com/users/uvsanto/projects/2"><img src="https://img.shields.io/badge/GitHub_Projects-Kanban_Ativo-2ea44f?style=for-the-badge&logo=github" alt="GitHub Project"></a>
-    <a href="https://escoladanuvem.org/"><img src="https://img.shields.io/badge/Instituição-Escola_da_Nuvem-007ACC?style=for-the-badge" alt="Escola da Nuvem"></a>
+ 
   </p>
 </div>
 
