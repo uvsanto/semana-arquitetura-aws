@@ -20,8 +20,8 @@ No **Dia 01**, estabelecemos a fundação essencial de uma aplicação web de tr
 O projeto parte de uma infraestrutura de rede pré-existente como *baseline* (VPC, blocos CIDR, sub-redes e gateways), sobre a qual construímos o ecossistema de computação, balanceamento e mensageria em duas Zonas de Disponibilidade (`us-east-2a` e `us-east-2b`).
 
 ## ⚖️ Decisões de arquitetura (ADRs)
-* **Application Load Balancer (ALB) vs. NLB:** Escolha do ALB por operar na Camada 7 (HTTP/HTTPS), permitindo o roteamento inteligente de requisições web para instâncias de frontend.
-* **SQS Principal vs. Sincronismo Direto:** Adoção de mensageria assíncrona para desacoplar a camada web do backend de processamento, garantindo resiliência contra picos de tráfego.
+- **Application Load Balancer (ALB) vs. NLB:** Escolha do ALB por operar na Camada 7 (HTTP/HTTPS), permitindo o roteamento inteligente de requisições web para instâncias de frontend.
+- **SQS Principal vs. Sincronismo Direto:** Adoção de mensageria assíncrona para desacoplar a camada web do backend de processamento, garantindo resiliência contra picos de tráfego.
 
 ---
 
