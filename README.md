@@ -241,4 +241,7 @@ Como o esforço de arquitetura se distribuiu entre os 4 domínios da **[AWS SAA-
 | **10** | **Processamento** | Leitura via *Long Polling* (20s) e exclusão automática da mensagem (`DeleteMessage`). | ✅ Comprovado |
 | **11** | **Persistência Final** | Registros encontrados no DynamoDB com carimbos `received_at` e `processed_at`. | ✅ Comprovado |
 
+### 📑 Apresentação Executiva (Pitch Deck)
+* 📊 **[Visualizar Apresentação Completa em PDF (8 Slides)](docs/apresentacao-arquitetura-aws.pdf)** — *Resumo visual da topologia Multi-AZ, desacoplamento SQS/DLQ, segurança Zero-Trust, Auto-Healing e FinOps.*
+
 
