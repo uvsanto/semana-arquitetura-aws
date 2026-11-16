@@ -117,63 +117,70 @@ O projeto foi conduzido seguindo as 6 etapas clássicas de transformação em nu
 
 Abaixo está o diagrama oficial da arquitetura em 3 camadas implementada na região `us-east-2` (Ohio), destacando o isolamento Multi-AZ, o balanceamento de carga, o desacoplamento via SQS/DLQ e a persistência no DynamoDB:
 
+## 📐 Topologia Macro Geral da Arquitetura (System Design)
+---
 ```mermaid
-graph TD
-    subgraph aws_cloud [AWS Cloud - us-east-2 Ohio]
-        subgraph vpc [VPC: 10.0.0.0/16]
-            igw((Internet Gateway))
+flowchart TB
+    subgraph Edge ["🌐 Borda Externa & Entrega"]
+        User(["👤 Clientes / Usuários Web"])
+        CF["⚡ Amazon CloudFront<br/>(Entrega Segura / Edge)"]
+    end
 
-            subgraph public_az_a [Zona de Disponibilidade A]
-                nat_a[NAT Gateway 1]
-                alb[Application Load Balancer ALB]
-            end
-            
-            subgraph public_az_b [Zona de Disponibilidade B]
-                nat_b[NAT Gateway 2]
-            end
+    subgraph AWS ["☁️ AWS Cloud — Região us-east-2 (Ohio)<br/>VPC: projeto-vpc (10.0.0.0/16)"]
+        IGW["🌐 Internet Gateway"]
 
-            subgraph private_tier [Camada de Aplicação Privada (Multi-AZ)]
-                subgraph app_1a [Sub-rede 1]
-                    fe_1a[Instância Frontend]
-                end
-                subgraph app_1c [Sub-rede 3]
-                    be_1a[Instância Backend Worker]
-                end
-                subgraph app_2a [Sub-rede 2]
-                    fe_1b[Instância Frontend]
-                end
-                subgraph app_2c [Sub-rede 4]
-                    be_1b[Instância Backend Worker]
-                end
-            end
+        subgraph Public ["Sub-redes Públicas (us-east-2a & us-east-2b)"]
+            ALB["⚖️ Application Load Balancer<br/>(projeto-alb-vagner-toma)"]
+            NAT["🚪 NAT Gateways (Multi-AZ)"]
+        end
 
-            subgraph data_tier [Camada de Dados]
-                db[(Amazon DynamoDB On-Demand)]
-            end
+        subgraph WebTier ["1ª Camada Privada: Apresentação (Frontend Web)"]
+            ASG_FE["💻 EC2 Auto Scaling Group — Frontend<br/>(Python Flask | Target Group: grupo-frontend-vagner-tomaz)"]
+        end
 
-            subgraph msg_tier [Camada de Mensageria]
-                queue[Amazon SQS Queue]
-            end
+        subgraph QueueTier ["Camada de Desacoplamento Assíncrono (Buffer)"]
+            SQS[("📬 Amazon SQS<br/>(fila-registros-vagner-tomaz)")]
+            DLQ[("🛑 Dead Letter Queue (DLQ)<br/>Isolamento de Falhas")]
+            SQS -.->|"Excesso de Tentativas"| DLQ
+        end
+
+        subgraph AppTier ["2ª Camada Privada: Processamento (Backend Workers)"]
+            ASG_BE["⚙️ EC2 Auto Scaling Group — Backend<br/>(Python systemd Worker | Long Polling 20s)"]
+        end
+
+        subgraph DataTier ["3ª Camada: Persistência NoSQL Escalável"]
+            DDB[("🗄️ Amazon DynamoDB<br/>(tabela-registros-vagner-tomaz)<br/>Partition Key: requestId | On-Demand")]
+        end
+
+        subgraph SecGov ["🛡️ Segurança, Governança, Observabilidade & FinOps"]
+            IAM["🔑 AWS IAM Role<br/>(ec2-role-vagner-tomaz)"]
+            SSM["🔐 AWS Systems Manager<br/>(Parameter Store & Session Manager Zero-SSH)"]
+            CW["📈 Amazon CloudWatch<br/>(Dashboards, Logs & Backlog Alarms)"]
+            SNS["📣 Amazon SNS & Cost Anomaly<br/>(Notificações e Controle FinOps)"]
         end
     end
 
-    usr[Usuários / Internet] --> alb
-    alb --> fe_1a
-    alb --> fe_1b
-    
-    fe_1a --> queue
-    fe_1b --> queue
-    
-    queue --> be_1a
-    queue --> be_1b
-    
-    be_1a --> db
-    be_1b --> db
+    User -->|"HTTP / HTTPS"| CF
+    CF --> IGW
+    IGW --> ALB
+    ALB -->|"SG Encadeado :80"| ASG_FE
+    ASG_FE -->|"SendMessage JSON + UUID"| SQS
+    SQS -->|"ReceiveMessage (20s)"| ASG_BE
+    ASG_BE -->|"PutItem NoSQL"| DDB
+    ASG_FE -.->|"GetParameter"| SSM
+    ASG_BE -.->|"GetParameter"| SSM
+    IAM -.->|"Credenciais Temporárias"| ASG_FE
+    IAM -.->|"Credenciais Temporárias"| ASG_BE
+    CW -.->|"Política de Escala por Fila"| ASG_BE
+    CW -->|"Dispara Alerta"| SNS
+    WebTier -.->|"Saída p/ Pacotes"| NAT
+    AppTier -.->|"Saída p/ APIs"| NAT
+```
 
 ---
 
 ## 📐 Topologia Macro Geral da Arquitetura (Mermaid.js)
-
+---
 ```mermaid
 flowchart TB
     subgraph Edge ["🌐 Borda Externa & Entrega"]
