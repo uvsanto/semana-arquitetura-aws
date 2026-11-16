@@ -57,7 +57,9 @@ flowchart TB
     SSM_SM -.->|Console Seguro IAM| ASG_FE
     SSM_SM -.->|Console Seguro IAM| ASG_BE
 ```
-
+<div align="center">
+  <img src="../assets/parte-03-dia02.jpeg" alt="Evoluindo a Arquitetura — Dia 02" width="750"/>
+</div>
 ---
 
 ## 🛠️ Tecnologias AWS Utilizadas e Glossário da Etapa
