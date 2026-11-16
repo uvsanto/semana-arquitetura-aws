@@ -26,10 +26,11 @@ A **[Escola da Nuvem](https://escoladanuvem.org/)** é uma organização sem fin
 
 ### 🛠️ Ferramentas e Tecnologias Utilizadas no Desenvolvimento
 * **Ambiente de Nuvem:** [Amazon Web Services (AWS)](https://aws.amazon.com/pt/) (Região `us-east-2` - Ohio).
-* **IDE e Edição Técnica:** [Visual Studio Code (VS Code)](https://code.visualstudio.com/) para estruturação de código Python, scripts *User Data* e documentação Markdown.
-* **Controle de Versão, Gestão Ágil e CI/CD:** [GitHub](https://github.com/uvsanto/semana-arquitetura-aws), [GitHub Projects (Kanban)](https://github.com/users/uvsanto/projects/2) e [GitHub Actions](https://github.com/features/actions).
-* **Inteligência Artificial Aplicada (Co-Engenharia e Auditoria):** **Google Gemini** (atuando como IA Mestre na estruturação arquitetural, revisão pedagógica e diagramação em código) e **GitHub Copilot / GPT** (atuando como IA auxiliar e validadora de governança e checklists).
-
+* **Ambiente de Desenvolvimento (IDE):** Visual Studio Code (VS Code)
+* **Versionamento e Controle de Código:** Git & GitHub Desktop
+* **Inteligência Artificial Aplicada (Co-Engenharia e Auditoria):**
+* **Google Gemini:** Atuando como IA Mestre na validação, estruturação arquitetural, revisão pedagógica e diagramação em código (Mermaid.js).
+* **Claude:** Atuando como IA auxiliar e validadora de governança, conformidade e checklists técnicos.
 ---
 
 ## ☁️ O que é a Amazon Web Services (AWS) e sua Liderança Global
