@@ -3,10 +3,15 @@
   <h3>System Design em Nuvem: Arquitetura em 3 Camadas Altamente Disponível, Desacoplada e Observável</h3>
   <p><i>Projeto prático de engenharia e governança em nuvem: construindo um ecossistema capaz de absorver picos extremos de tráfego, proteger ativos críticos de dados e recuperar-se automaticamente de falhas sem intervenção humana.</i></p>
 
-  <p>
- 
+   <p>
+    <a href="https://aws.amazon.com/pt/"><img src="https://img.shields.io/badge/AWS_Cloud-us--east--2_(Ohio)-FF9900?style=for-the-badge&logo=amazonaws&logoColor=white" alt="AWS Region"></a>
+    <a href="https://aws.amazon.com/pt/certification/certified-solutions-architect-associate/"><img src="https://img.shields.io/badge/Alinhado_ao_Exame-AWS_SAA--C03-232F3E?style=for-the-badge&logo=amazon-aws&logoColor=FF9900" alt="SAA-C03"></a>
+    <a href="https://github.com/users/uvsanto/projects/2"><img src="https://img.shields.io/badge/GitHub_Projects-Kanban_Ativo-2ea44f?style=for-the-badge&logo=github" alt="GitHub Project"></a>
+    <a href="https://escoladanuvem.org/"><img src="https://img.shields.io/badge/Instituição-Escola_da_Nuvem-007ACC?style=for-the-badge" alt="Escola da Nuvem"></a>
   </p>
 </div>
+
+
 
 ---
 ### 🧭 Navegação Rápida & Apresentação Executiva
@@ -108,6 +113,91 @@ O projeto foi conduzido seguindo as 6 etapas clássicas de transformação em nu
 #### 2. Arquitetura em 3 Camadas Implementada (Após o Laboratório)
 ![Arquitetura Após o Laboratório](assets/img/arquitetura-depois.png)
 
+## 🏛️ Topologia de Arquitetura (Após o Laboratório)
+
+Abaixo está o diagrama oficial da arquitetura em 3 camadas implementada na região `us-east-2` (Ohio), destacando o isolamento Multi-AZ, o balanceamento de carga, o desacoplamento via SQS/DLQ e a persistência no DynamoDB:
+
+```mermaid
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#e3f2fd', 'edgeLabelBackground':'#ffffff', 'tertiaryColor': '#fff'}}}%%
+graph TD
+    %% Camada de Borda e Rede
+    subgraph aws_cloud [AWS Cloud]
+        region[Region: us-east-2 Ohio]:::aws_region
+        subgraph vpc [VPC: 10.0.0.0/16]:::aws_vpc
+            igw((Internet Gateway)):::aws_igw
+
+            subgraph public_az_a [Zona de Disponibilidade A]:::aws_az
+                nat_a[NAT Gateway 1]:::aws_nat
+                alb[Application Load Balancer ALB]:::aws_alb
+            end
+            
+            subgraph public_az_b [Zona de Disponibilidade B]:::aws_az
+                nat_b[NAT Gateway 2]:::aws_nat
+            end
+
+            subgraph private_tier [Camada de Aplicação Multi-AZ (Privadas)]:::aws_subnet_group
+                subgraph app_1a [Sub-rede 1]:::aws_az
+                    fe_1a[Instância Frontend]:::aws_ec2
+                end
+                subgraph app_1c [Sub-rede 3]:::aws_az
+                    be_1a[Instância Backend Worker]:::aws_ec2
+                end
+                subgraph app_2a [Sub-rede 2]:::aws_az
+                    fe_1b[Instância Frontend]:::aws_ec2
+                end
+                subgraph app_2c [Sub-rede 4]:::aws_az
+                    be_1b[Instância Backend Worker]:::aws_ec2
+                end
+            end
+
+            subgraph data_tier [Camada de Dados (Privada)]:::aws_az
+                db[(Amazon DynamoDB On-Demand)]:::aws_dynamodb
+            end
+
+            subgraph msg_tier [Camada de Mensageria (Privada)]:::aws_az
+                queue[Amazon SQS Queue]:::aws_sqs
+            end
+        end
+    end
+
+    %% Fluxo de Tráfego
+    usr[Usuário]:::actor
+    inet[Internet]:::actor
+
+    inet -- HTTP/HTTPS --> igw
+    igw --> nat_a
+    igw --> nat_b
+    
+    nat_a --> alb
+    nat_b --> alb
+    usr -- HTTP/HTTPS --> alb
+    
+    alb --> fe_1a
+    alb --> fe_1b
+    
+    %% Fluxo de Aplicação (Frontend ➔ SQS ➔ Backend)
+    fe_1a ➔ queue
+    fe_1b ➔ queue
+    
+    queue ➔ be_1a
+    queue ➔ be_1b
+    
+    %% Fluxo de Persistência (Backend ➔ DynamoDB)
+    be_1a ➔ db
+    be_1b ➔ db
+
+    %% Estilos CSS
+    classDef aws_region fill:#fff59d,stroke:#fbc02d,stroke-width:2px,color:#333;
+    classDef aws_vpc fill:#e0f2f1,stroke:#00796b,stroke-width:2px;
+    classDef aws_az fill:#fff,stroke:#9e9e9e,stroke-width:1px,stroke-dasharray: 5 5;
+    classDef aws_alb fill:#bbdefb,stroke:#1565c0,stroke-width:2px;
+    classDef aws_ec2 fill:#ffe0b2,stroke:#ef6c00,stroke-width:2px;
+    classDef aws_dynamodb fill:#e1bee7,stroke:#7b1fa2,stroke-width:2px;
+    classDef aws_sqs fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px;
+    classDef aws_nat fill:#e0f2f1,stroke:#00796b,stroke-width:1px;
+    classDef aws_igw fill:#e0f2f1,stroke:#00796b,stroke-width:1px;
+    classDef aws_subnet_group fill:#fafafa,stroke:#bdbdbd,stroke-width:1px;
+    classDef actor fill:#fff,stroke:#333,stroke-width:1px;
 ---
 
 ## 📐 Topologia Macro Geral da Arquitetura (Mermaid.js)
