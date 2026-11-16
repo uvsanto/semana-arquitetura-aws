@@ -53,7 +53,9 @@ flowchart TB
     Fault -->|Gera Acúmulo na Fila| SQS
     ASG_FE -.->|Auto-Healing: Cria Nova EC2| Prod
 ```
-
+<div align="center">
+  <img src="../assets/parte-04-dia03.jpeg" alt="Operação e Resiliência — Dia 03" width="750"/>
+</div>
 ---
 
 ## 🛠️ Tecnologias AWS Utilizadas e Glossário da Etapa
