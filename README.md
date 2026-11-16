@@ -118,86 +118,57 @@ O projeto foi conduzido seguindo as 6 etapas clássicas de transformação em nu
 Abaixo está o diagrama oficial da arquitetura em 3 camadas implementada na região `us-east-2` (Ohio), destacando o isolamento Multi-AZ, o balanceamento de carga, o desacoplamento via SQS/DLQ e a persistência no DynamoDB:
 
 ```mermaid
-%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#e3f2fd', 'edgeLabelBackground':'#ffffff', 'tertiaryColor': '#fff'}}}%%
 graph TD
-    %% Camada de Borda e Rede
-    subgraph aws_cloud [AWS Cloud]
-        region[Region: us-east-2 Ohio]:::aws_region
-        subgraph vpc [VPC: 10.0.0.0/16]:::aws_vpc
-            igw((Internet Gateway)):::aws_igw
+    subgraph aws_cloud [AWS Cloud - us-east-2 Ohio]
+        subgraph vpc [VPC: 10.0.0.0/16]
+            igw((Internet Gateway))
 
-            subgraph public_az_a [Zona de Disponibilidade A]:::aws_az
-                nat_a[NAT Gateway 1]:::aws_nat
-                alb[Application Load Balancer ALB]:::aws_alb
+            subgraph public_az_a [Zona de Disponibilidade A]
+                nat_a[NAT Gateway 1]
+                alb[Application Load Balancer ALB]
             end
             
-            subgraph public_az_b [Zona de Disponibilidade B]:::aws_az
-                nat_b[NAT Gateway 2]:::aws_nat
+            subgraph public_az_b [Zona de Disponibilidade B]
+                nat_b[NAT Gateway 2]
             end
 
-            subgraph private_tier [Camada de Aplicação Multi-AZ (Privadas)]:::aws_subnet_group
-                subgraph app_1a [Sub-rede 1]:::aws_az
-                    fe_1a[Instância Frontend]:::aws_ec2
+            subgraph private_tier [Camada de Aplicação Privada (Multi-AZ)]
+                subgraph app_1a [Sub-rede 1]
+                    fe_1a[Instância Frontend]
                 end
-                subgraph app_1c [Sub-rede 3]:::aws_az
-                    be_1a[Instância Backend Worker]:::aws_ec2
+                subgraph app_1c [Sub-rede 3]
+                    be_1a[Instância Backend Worker]
                 end
-                subgraph app_2a [Sub-rede 2]:::aws_az
-                    fe_1b[Instância Frontend]:::aws_ec2
+                subgraph app_2a [Sub-rede 2]
+                    fe_1b[Instância Frontend]
                 end
-                subgraph app_2c [Sub-rede 4]:::aws_az
-                    be_1b[Instância Backend Worker]:::aws_ec2
+                subgraph app_2c [Sub-rede 4]
+                    be_1b[Instância Backend Worker]
                 end
             end
 
-            subgraph data_tier [Camada de Dados (Privada)]:::aws_az
-                db[(Amazon DynamoDB On-Demand)]:::aws_dynamodb
+            subgraph data_tier [Camada de Dados]
+                db[(Amazon DynamoDB On-Demand)]
             end
 
-            subgraph msg_tier [Camada de Mensageria (Privada)]:::aws_az
-                queue[Amazon SQS Queue]:::aws_sqs
+            subgraph msg_tier [Camada de Mensageria]
+                queue[Amazon SQS Queue]
             end
         end
     end
 
-    %% Fluxo de Tráfego
-    usr[Usuário]:::actor
-    inet[Internet]:::actor
-
-    inet -- HTTP/HTTPS --> igw
-    igw --> nat_a
-    igw --> nat_b
-    
-    nat_a --> alb
-    nat_b --> alb
-    usr -- HTTP/HTTPS --> alb
-    
+    usr[Usuários / Internet] --> alb
     alb --> fe_1a
     alb --> fe_1b
     
-    %% Fluxo de Aplicação (Frontend ➔ SQS ➔ Backend)
-    fe_1a ➔ queue
-    fe_1b ➔ queue
+    fe_1a --> queue
+    fe_1b --> queue
     
-    queue ➔ be_1a
-    queue ➔ be_1b
+    queue --> be_1a
+    queue --> be_1b
     
-    %% Fluxo de Persistência (Backend ➔ DynamoDB)
-    be_1a ➔ db
-    be_1b ➔ db
-
-    %% Estilos CSS
-    classDef aws_region fill:#fff59d,stroke:#fbc02d,stroke-width:2px,color:#333;
-    classDef aws_vpc fill:#e0f2f1,stroke:#00796b,stroke-width:2px;
-    classDef aws_az fill:#fff,stroke:#9e9e9e,stroke-width:1px,stroke-dasharray: 5 5;
-    classDef aws_alb fill:#bbdefb,stroke:#1565c0,stroke-width:2px;
-    classDef aws_ec2 fill:#ffe0b2,stroke:#ef6c00,stroke-width:2px;
-    classDef aws_dynamodb fill:#e1bee7,stroke:#7b1fa2,stroke-width:2px;
-    classDef aws_sqs fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px;
-    classDef aws_nat fill:#e0f2f1,stroke:#00796b,stroke-width:1px;
-    classDef aws_igw fill:#e0f2f1,stroke:#00796b,stroke-width:1px;
-    classDef aws_subnet_group fill:#fafafa,stroke:#bdbdbd,stroke-width:1px;
-    classDef actor fill:#fff,stroke:#333,stroke-width:1px;
+    be_1a --> db
+    be_1b --> db
 ```
 ---
 
