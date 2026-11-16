@@ -109,4 +109,4 @@ Distribuição do peso técnico abordado especificamente na operação do **Dia 
 ---
 
 ## 🔒 Status do Ambiente AWS
-> **Conformidade de Avaliação:** Todos os recursos permanecem ativos e monitorados na região `us-east-2` (sem execução da limpeza de fim de laboratório), aguardando a avaliação e autorização final do **Prof. Ednilson Cipolla**.
+> **Conformidade de Avaliação:**
