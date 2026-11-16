@@ -61,7 +61,9 @@ flowchart LR
   BE1 -.->|"saída"| NAT
   BE2 -.->|"saída"| NAT
 ```
-
+<div align="center">
+  <img src="../assets/parte-02-dia01.jpeg" alt="Construindo a Solução — Dia 01" width="750"/>
+</div>
 ## 🛠️ Tecnologias AWS Utilizadas nessa Etapa
 
 | Serviço / Recurso AWS | Função Construída no Dia 01 | Definição no Glossário |
