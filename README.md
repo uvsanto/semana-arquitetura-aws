@@ -12,7 +12,12 @@
 </div>
 
 ---
-
+### 🧭 Navegação Rápida & Apresentação Executiva
+* 📊 **[Apresentação Executiva em PDF (8 Slides)](docs/apresentacao-arquitetura-aws.pdf)** — *Pitch deck visual com topologia Multi-AZ, desacoplamento SQS/DLQ, Zero-Trust e FinOps.*
+* 📅 **[Dia 01 — Fundação & Desacoplamento](dia-01/README.md)**
+* 📅 **[Dia 02 — Segurança & Escalabilidade](dia-02/README.md)**
+* 📅 **[Dia 03 — Observabilidade & Operação](dia-03/README.md)**
+* 
 ## 👥 Identificação Acadêmica, Mentoria e Ecossistema Tecnológico
 
 | Papel no Projeto | Nome / Instituição | Links Oficiais e Redes |
