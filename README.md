@@ -198,6 +198,7 @@ graph TD
     classDef aws_igw fill:#e0f2f1,stroke:#00796b,stroke-width:1px;
     classDef aws_subnet_group fill:#fafafa,stroke:#bdbdbd,stroke-width:1px;
     classDef actor fill:#fff,stroke:#333,stroke-width:1px;
+```
 ---
 
 ## 📐 Topologia Macro Geral da Arquitetura (Mermaid.js)
